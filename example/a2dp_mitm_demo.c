@@ -406,7 +406,7 @@ static void a2dp_sink_packet_handler(uint8_t packet_type, uint16_t channel, uint
                 }
 
                 printf("A2DP Sink: Headset not configured yet, set its preferred frequency to the one of smartphone [S-%d, H-%d].\n", mitm_context.smartphone_sampling_frequency, mitm_context.headset_sampling_frequency);
-                avdtp_set_preferred_sampling_frequeny(local_source_stream_endpoint, mitm_context.smartphone_sampling_frequency);
+                avdtp_set_preferred_sampling_frequency(local_source_stream_endpoint, mitm_context.smartphone_sampling_frequency);
             }
 
             break;
@@ -757,8 +757,8 @@ int btstack_main(int argc, const char * argv[]){
     sdp_register_service(sdp_avdtp_source_service_buffer);
 
     // For testing only: enforce reconfigure
-    // avdtp_set_preferred_sampling_frequeny(local_source_stream_endpoint, 48000); // to headset
-    // avdtp_set_preferred_sampling_frequeny(local_sink_stream_endpoint,   44100); // to smartphone
+    // avdtp_set_preferred_sampling_frequency(local_source_stream_endpoint, 48000); // to headset
+    // avdtp_set_preferred_sampling_frequency(local_sink_stream_endpoint,   44100); // to smartphone
     
     // GAP
     gap_set_local_name("A2DP MITM Demo 00:00:00:00:00:00");
