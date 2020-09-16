@@ -81,7 +81,8 @@ static const char * headset_addr_string    = "00:21:3C:AC:F7:38";
 // Sony MDR330 static const char * headset_addr_string    = "00:18:09:28:50:18";
 
 static uint8_t media_sbc_codec_capabilities[] = {
-        (AVDTP_SBC_44100 << 4) | AVDTP_SBC_STEREO,
+        // (AVDTP_SBC_44100 << 4) | AVDTP_SBC_STEREO,
+        0xF0 | AVDTP_SBC_STEREO,
         0xFF,//(AVDTP_SBC_BLOCK_LENGTH_16 << 4) | (AVDTP_SBC_SUBBANDS_8 << 2) | AVDTP_SBC_ALLOCATION_METHOD_LOUDNESS,
         2, 53
 };
@@ -118,6 +119,12 @@ typedef struct {
 
     bool headset_stream_ready;
 
+    bool headset_configured;
+    bool headset_restart_stream;
+
+    uint16_t headset_sampling_frequency; 
+    uint16_t smartphone_sampling_frequency; 
+
 #ifdef USE_TIMER_FOR_SENDING
     bool forward_active;
     bool sbc_ready_to_send;
@@ -130,6 +137,7 @@ typedef struct {
 } mitm_context_t;
 
 static mitm_context_t mitm_context;
+static avdtp_stream_endpoint_t * local_source_stream_endpoint;
 
 #ifdef HAVE_BTSTACK_STDIN
 static uint8_t media_sbc_codec_configuration[] = {
@@ -362,25 +370,47 @@ static void a2dp_sink_packet_handler(uint8_t packet_type, uint16_t channel, uint
 
     switch (packet[2]){
          case A2DP_SUBEVENT_SIGNALING_CONNECTION_ESTABLISHED:
-             a2dp_subevent_signaling_connection_established_get_bd_addr(packet, event_addr);
-             if (memcmp(smartphone_addr, event_addr,  6) != 0) break;
-             status = a2dp_subevent_signaling_connection_established_get_status(packet);
-             if (status != ERROR_CODE_SUCCESS){
-                 printf("A2DP Sink: Connection failed with status 0x%02x\n", status);
-                 break;
-             }
-             mitm_context.a2dp_sink_cid = a2dp_subevent_signaling_connection_established_get_a2dp_cid(packet);
-             printf("A2DP Sink: Connected to device with addr %s, a2dp cid 0x%02x.\n", bd_addr_to_str(event_addr), mitm_context.a2dp_sink_cid);
-             break;
+            a2dp_subevent_signaling_connection_established_get_bd_addr(packet, event_addr);
+            if (memcmp(smartphone_addr, event_addr,  6) != 0) break;
+            status = a2dp_subevent_signaling_connection_established_get_status(packet);
+            if (status != ERROR_CODE_SUCCESS){
+                printf("A2DP Sink: Connection failed with status 0x%02x\n", status);
+                break;
+            }
+            mitm_context.a2dp_sink_cid = a2dp_subevent_signaling_connection_established_get_a2dp_cid(packet);
+            printf("A2DP Sink: Connected to device with addr %s, a2dp cid 0x%02x.\n", bd_addr_to_str(event_addr), mitm_context.a2dp_sink_cid);
+            mitm_context.smartphone_sampling_frequency = 0; 
+            break;
 
-        case A2DP_SUBEVENT_SIGNALING_MEDIA_CODEC_SBC_CONFIGURATION:{
-            printf("A2DP Sink: received SBC codec configuration.\n");
+        case A2DP_SUBEVENT_SIGNALING_MEDIA_CODEC_SBC_CONFIGURATION:
+            mitm_context.smartphone_sampling_frequency = a2dp_subevent_signaling_media_codec_sbc_configuration_get_sampling_frequency(packet); 
+            printf("A2DP Sink: Received SBC codec configuration, smartphone SF %d.\n", mitm_context.smartphone_sampling_frequency);
+
             dump_sbc_configuration(packet);
-
             // init ring buffer to store sbc frames
             ring_buffer_init();
+            
+            if (mitm_context.headset_sampling_frequency != mitm_context.smartphone_sampling_frequency){
+                if (mitm_context.headset_stream_ready){
+                    printf("A2DP Sink: Headset already streaming, (1) pause it to change sampling frequency, then (2) restart the stream [S-%d, H-%d].\n", mitm_context.smartphone_sampling_frequency, mitm_context.headset_sampling_frequency);
+                    mitm_context.headset_restart_stream = true;
+                    a2dp_source_pause_stream(mitm_context.a2dp_source_cid, mitm_context.a2dp_source_local_seid);
+                    break;    
+                }
+
+                if (mitm_context.headset_configured){
+                    printf("A2DP Sink: Headset configured but not yet streaming, (1) reconfigure it with smartphone sampling frequency [S-%d, H-%d].\n", mitm_context.smartphone_sampling_frequency, mitm_context.headset_sampling_frequency);
+                    mitm_context.headset_restart_stream = false;
+                    a2dp_source_reconfigure_stream_sampling_frequency(mitm_context.a2dp_source_cid, mitm_context.smartphone_sampling_frequency);
+                    break;    
+                }
+
+                printf("A2DP Sink: Headset not configured yet, set its preferred frequency to the one of smartphone [S-%d, H-%d].\n", mitm_context.smartphone_sampling_frequency, mitm_context.headset_sampling_frequency);
+                avdtp_set_preferred_sampling_frequeny(local_source_stream_endpoint, mitm_context.smartphone_sampling_frequency);
+            }
+
             break;
-        }  
+        
         case A2DP_SUBEVENT_SIGNALING_MEDIA_CODEC_OTHER_CONFIGURATION:
             printf("A2DP Sink: received non SBC codec. It will be ignored.\n");
             break;
@@ -406,6 +436,7 @@ static void a2dp_sink_packet_handler(uint8_t packet_type, uint16_t channel, uint
 
         case A2DP_SUBEVENT_SIGNALING_CONNECTION_RELEASED:
             mitm_context.a2dp_sink_cid = 0;
+            mitm_context.smartphone_sampling_frequency = 0; 
             printf("A2DP Sink: signaling connection released\n");
             break;
         default:
@@ -441,32 +472,56 @@ static void a2dp_source_packet_handler(uint8_t packet_type, uint16_t channel, ui
                 gap_request_role(headset_addr, HCI_ROLE_MASTER);
             }
 
+            mitm_context.headset_sampling_frequency = 0;
+            mitm_context.headset_configured = false;
+            mitm_context.headset_stream_ready = false;
+            mitm_context.headset_restart_stream = false;
             break;
 
-         case A2DP_SUBEVENT_SIGNALING_MEDIA_CODEC_SBC_CONFIGURATION:{
-            printf("A2DP Source: Received SBC codec configuration.\n");
+         case A2DP_SUBEVENT_SIGNALING_MEDIA_CODEC_SBC_CONFIGURATION:
+            mitm_context.headset_configured = true;
+            mitm_context.headset_sampling_frequency = a2dp_subevent_signaling_media_codec_sbc_configuration_get_sampling_frequency(packet); 
+            printf("A2DP Source: Received SBC codec configuration, headset SF %d.\n", mitm_context.headset_sampling_frequency);
             dump_sbc_configuration(packet);
             break;
-        }  
-
+        
         case A2DP_SUBEVENT_STREAM_ESTABLISHED:
             printf("A2DP Source: stream established a2dp_cid 0x%02x, local seid %d, remote seid %d\n",
                    mitm_context.a2dp_source_cid, mitm_context.a2dp_source_local_seid, a2dp_subevent_stream_established_get_remote_seid(packet));
+
             printf("A2DP Source: start stream to headset\n");
             a2dp_source_start_stream(mitm_context.a2dp_source_cid, mitm_context.a2dp_source_local_seid);
             break;
         
         case A2DP_SUBEVENT_STREAM_STARTED:
-            mitm_context.headset_stream_ready = 1;
+            mitm_context.headset_stream_ready = true;
             printf("A2DP Source: headset stream started\n");
             break;
 
         case A2DP_SUBEVENT_STREAM_SUSPENDED:
             printf("A2DP Source: headset stream paused\n");
+            mitm_context.headset_stream_ready = false;
+
+            if (mitm_context.headset_sampling_frequency != mitm_context.smartphone_sampling_frequency){
+                printf("A2DP Source: reconfigure headset to the sampling frequency of smartphone [S-%d, H-%d].\n", mitm_context.smartphone_sampling_frequency, mitm_context.headset_sampling_frequency);
+                a2dp_source_reconfigure_stream_sampling_frequency(mitm_context.a2dp_source_cid, mitm_context.smartphone_sampling_frequency);
+            }
+            break;
+
+        case A2DP_SUBEVENT_STREAM_RECONFIGURED:
+            mitm_context.headset_sampling_frequency = mitm_context.smartphone_sampling_frequency;
+            
+            if (mitm_context.headset_restart_stream){
+                mitm_context.headset_restart_stream = false;
+                printf("A2DP Source: headset restart stream stream, [S-%d, H-%d].\n", mitm_context.smartphone_sampling_frequency, mitm_context.headset_sampling_frequency);
+                a2dp_source_start_stream(mitm_context.a2dp_source_cid, mitm_context.a2dp_source_local_seid);            
+            }
             break;
 
         case A2DP_SUBEVENT_STREAM_RELEASED:
             printf("A2DP Source: headset stream released\n");
+            mitm_context.headset_restart_stream = false;
+            mitm_context.headset_stream_ready = false;
             break;
 
         case A2DP_SUBEVENT_STREAMING_CAN_SEND_MEDIA_PACKET_NOW: {
@@ -514,6 +569,10 @@ static void a2dp_source_packet_handler(uint8_t packet_type, uint16_t channel, ui
 
         case A2DP_SUBEVENT_SIGNALING_CONNECTION_RELEASED:
             mitm_context.a2dp_source_cid = 0;
+
+            mitm_context.headset_sampling_frequency = 0;
+            mitm_context.headset_restart_stream = false;
+            mitm_context.headset_stream_ready = false;
             printf("A2DP Source: signaling connection released\n");
             break;
 
@@ -685,7 +744,7 @@ int btstack_main(int argc, const char * argv[]){
     a2dp_source_register_packet_handler(&a2dp_source_packet_handler);
     // Create stream endpoint.
 
-    avdtp_stream_endpoint_t * local_source_stream_endpoint = a2dp_source_create_stream_endpoint(AVDTP_AUDIO, AVDTP_CODEC_SBC, media_sbc_codec_capabilities, sizeof(media_sbc_codec_capabilities), media_sbc_codec_configuration, sizeof(media_sbc_codec_configuration));
+    local_source_stream_endpoint = a2dp_source_create_stream_endpoint(AVDTP_AUDIO, AVDTP_CODEC_SBC, media_sbc_codec_capabilities, sizeof(media_sbc_codec_capabilities), media_sbc_codec_configuration, sizeof(media_sbc_codec_configuration));
     if (!local_source_stream_endpoint){
         printf("A2DP Source: not enough memory to create local stream endpoint\n");
         return 1;
@@ -697,7 +756,10 @@ int btstack_main(int argc, const char * argv[]){
     a2dp_source_create_sdp_record(sdp_avdtp_source_service_buffer, 0x10002, 1, NULL, NULL);
     sdp_register_service(sdp_avdtp_source_service_buffer);
 
-
+    // For testing only: enforce reconfigure
+    // avdtp_set_preferred_sampling_frequeny(local_source_stream_endpoint, 48000); // to headset
+    // avdtp_set_preferred_sampling_frequeny(local_sink_stream_endpoint,   44100); // to smartphone
+    
     // GAP
     gap_set_local_name("A2DP MITM Demo 00:00:00:00:00:00");
     gap_discoverable_control(1);
