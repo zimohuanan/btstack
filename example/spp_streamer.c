@@ -82,6 +82,17 @@ static uint16_t  rfcomm_mtu;
 static uint16_t  rfcomm_cid = 0;
 // static uint32_t  data_to_send =  DATA_VOLUME;
 
+// OOB
+static int ui_oob_confirm;
+static int ui_oob_random;
+static int ui_oob_pos;
+static int ui_oob_nibble;
+
+static uint8_t oob_peer_random[16];
+static uint8_t oob_peer_confirm[16];
+static bool oob_confirm_available;
+static bool oob_random_available;
+
 /**
  * RFCOMM can make use for ERTM. Due to the need to re-transmit packets,
  * a large buffer is needed to still get high throughput
@@ -179,17 +190,43 @@ static void spp_send_packet(void){
  * 
  * @text The packet handler of the combined example is just the combination of the individual packet handlers.
  */
-
+static void print_16_bytes(const uint8_t * value){
+    unsigned  int i;
+    for (i=0;i<16;i++){
+        printf("%02X", value[i]);
+    }
+    printf("\n");
+}
 static void packet_handler (uint8_t packet_type, uint16_t channel, uint8_t *packet, uint16_t size){
     UNUSED(channel);
 
     bd_addr_t event_addr;
     uint8_t   rfcomm_channel_nr;
-
 	switch (packet_type) {
 		case HCI_EVENT_PACKET:
 			switch (hci_event_packet_get_type(packet)) {
 
+			    case BTSTACK_EVENT_STATE:
+			        if (btstack_event_state_get_state(packet) != HCI_STATE_WORKING) return;
+			        printf("Please enter OOB with 'r' and 'c' commands\n");
+			        break;
+
+			    case GAP_EVENT_LOCAL_OOB_DATA:
+			        if (gap_event_local_oob_data_get_oob_data_present(packet) > 0){
+                        uint8_t value[16];
+                        gap_event_local_oob_data_get_c_192(packet, value);
+                        printf("C192: "); print_16_bytes(value);
+                        gap_event_local_oob_data_get_r_192(packet, value);
+                        printf("R192: "); print_16_bytes(value);
+			        }
+			        break;
+			    case HCI_EVENT_IO_CAPABILITY_RESPONSE:
+			        // set OOB data
+                    hci_event_io_capability_request_get_bd_addr(packet, event_addr);
+			        if (oob_confirm_available && oob_random_available){
+			            gap_ssp_remote_oob_data(event_addr, oob_peer_confirm, oob_peer_random, NULL, NULL);
+			        }
+			        break;
                 case HCI_EVENT_PIN_CODE_REQUEST:
                     // inform about pin code request
                     printf("Pin code request - using '0000'\n");
@@ -268,6 +305,66 @@ static void packet_handler (uint8_t packet_type, uint16_t channel, uint8_t *pack
 	}
 }
 
+
+static void stdin_process(char c){
+
+    if (c == ' ') return;
+    if (c == ':') return;
+
+    if (ui_oob_confirm){
+        ui_oob_nibble = (ui_oob_nibble << 4) | nibble_for_char(c);
+        if ((ui_oob_pos & 1) == 1){
+            oob_peer_confirm[ui_oob_pos >> 1] = ui_oob_nibble;
+            ui_oob_nibble = 0;
+        }
+        ui_oob_pos++;
+        if (ui_oob_pos == 32){
+            ui_oob_confirm = 0;
+            printf("PEER_OOB_CONFIRM: ");
+            printf_hexdump(oob_peer_confirm, 16);
+            fflush(stdout);
+            oob_confirm_available = true;
+        }
+        return;
+    }
+
+    if (ui_oob_random){
+        ui_oob_nibble = (ui_oob_nibble << 4) | nibble_for_char(c);
+        if ((ui_oob_pos & 1) == 1){
+            oob_peer_random[ui_oob_pos >> 1] = ui_oob_nibble;
+            ui_oob_nibble = 0;
+        }
+        ui_oob_pos++;
+        if (ui_oob_pos == 32){
+            ui_oob_random = 0;
+            printf("PEER_OOB_RANDOM: ");
+            printf_hexdump(oob_peer_random, 16);
+            fflush(stdout);
+            oob_random_available = true;
+        }
+        return;
+    }
+
+    switch (c){
+        case 's':
+            printf("start scanning for spp streamer\n");
+            break;
+            case 'c':
+                printf("receive oob confirm value\n");
+                ui_oob_confirm = 1;
+                ui_oob_pos = 0;
+                break;
+                case 'r':
+                    printf("receive oob random value\n");
+                    ui_oob_random = 1;
+                    ui_oob_pos = 0;
+                    break;
+                    default:
+                        break;
+    }
+    fflush(stdout);
+}
+
 /*
  * @section Main Application Setup
  *
@@ -301,6 +398,8 @@ int btstack_main(int argc, const char * argv[])
     // register for HCI events
     hci_event_callback_registration.callback = &packet_handler;
     hci_add_event_handler(&hci_event_callback_registration);
+
+    btstack_stdin_setup(stdin_process);
 
     // short-cut to find other SPP Streamer
     gap_set_class_of_device(TEST_COD);
