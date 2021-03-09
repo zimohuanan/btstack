@@ -3191,6 +3191,14 @@ typedef uint8_t sm_key_t[16];
  */
 #define GATTSERVICE_SUBEVENT_SCAN_PARAMETERS_SERVICE_CONNECTED            0x10
 
+/**
+ * @format 1211
+ * @param subevent_code
+ * @param cid
+ * @param status
+ * @param num_instances
+*/
+#define GATTSERVICE_SUBEVENT_HID_SERVICE_CONNECTED                        0x11
 
 // MAP Meta Event Group
 
