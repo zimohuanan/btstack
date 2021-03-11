@@ -3202,13 +3202,14 @@ typedef uint8_t sm_key_t[16];
 #define GATTSERVICE_SUBEVENT_HID_SERVICE_CONNECTED                        0x11
 
 /** 
- * @format 12LV
+ * @format 121LV
  * @param subevent_code
  * @param hids_cid
+ * @param report_id
  * @param report_len
  * @param report
 */
-#define GATTSERVICE_SUBEVENT_REPORT                                       0x12
+#define GATTSERVICE_SUBEVENT_HID_REPORT                                    0x12
 
 
 // MAP Meta Event Group

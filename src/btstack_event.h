@@ -9522,31 +9522,40 @@ static inline uint8_t gattservice_subevent_hid_service_connected_get_num_instanc
 }
 
 /**
- * @brief Get field hids_cid from event GATTSERVICE_SUBEVENT_REPORT
+ * @brief Get field hids_cid from event GATTSERVICE_SUBEVENT_HID_REPORT
  * @param event packet
  * @return hids_cid
  * @note: btstack_type 2
  */
-static inline uint16_t gattservice_subevent_report_get_hids_cid(const uint8_t * event){
+static inline uint16_t gattservice_subevent_hid_report_get_hids_cid(const uint8_t * event){
     return little_endian_read_16(event, 3);
 }
 /**
- * @brief Get field report_len from event GATTSERVICE_SUBEVENT_REPORT
+ * @brief Get field report_id from event GATTSERVICE_SUBEVENT_HID_REPORT
+ * @param event packet
+ * @return report_id
+ * @note: btstack_type 1
+ */
+static inline uint8_t gattservice_subevent_hid_report_get_report_id(const uint8_t * event){
+    return event[5];
+}
+/**
+ * @brief Get field report_len from event GATTSERVICE_SUBEVENT_HID_REPORT
  * @param event packet
  * @return report_len
  * @note: btstack_type L
  */
-static inline uint16_t gattservice_subevent_report_get_report_len(const uint8_t * event){
-    return little_endian_read_16(event, 5);
+static inline uint16_t gattservice_subevent_hid_report_get_report_len(const uint8_t * event){
+    return little_endian_read_16(event, 6);
 }
 /**
- * @brief Get field report from event GATTSERVICE_SUBEVENT_REPORT
+ * @brief Get field report from event GATTSERVICE_SUBEVENT_HID_REPORT
  * @param event packet
  * @return report
  * @note: btstack_type V
  */
-static inline const uint8_t * gattservice_subevent_report_get_report(const uint8_t * event){
-    return &event[7];
+static inline const uint8_t * gattservice_subevent_hid_report_get_report(const uint8_t * event){
+    return &event[8];
 }
 
 /**
