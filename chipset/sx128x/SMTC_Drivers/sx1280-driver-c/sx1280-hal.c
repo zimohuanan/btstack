@@ -137,16 +137,13 @@ static DioIrqHandler **dioIrqHandlers;
 
 extern SPI_HandleTypeDef RADIO_SPI_HANDLE;
 
+//#define SPI_SAFETY
 /**
  *  fast, non thread save
  */
 static inline void SPI_TransmitReceive(SPI_HandleTypeDef *hspi, uint8_t *pTxData, uint8_t *pRxData, uint16_t Size)
 {
   SPI_TypeDef *SPI = hspi->Instance;
-
-  // nothing to do
-  if( Size == 0 )
-      return;
 
   // set to 16bit IO
   CLEAR_BIT( SPI->CR2, SPI_RXFIFO_THRESHOLD );
@@ -161,11 +158,22 @@ static inline void SPI_TransmitReceive(SPI_HandleTypeDef *hspi, uint8_t *pTxData
   uint16_t *txPtr16 = (uint16_t*)pTxData;
   uint16_t *rxPtr16 = (uint16_t*)pRxData;
   uint16_t *txEndPtr16 = (uint16_t*)(pTxData + (Size & (UINT16_MAX-1)));
+  uint16_t *rxEndPtr16 = (uint16_t*)(pRxData + (Size & (UINT16_MAX-1)));
+
+  // get interupt status
+  uint_fast32_t prim = __get_PRIMASK();
+  // disable interrupts
+  __disable_irq();
 
   // transmit full 16bits first
+  // receive 16bits
   for(;txPtr16<txEndPtr16;)
   {
-      unsigned int SR = SPI->SR;
+      uint_fast16_t SR = SPI->SR;
+#ifdef SPI_SAFETY
+      assert( (SR & SPI_FLAG_OVR) == 0 );
+      assert( (SR & SPI_SR_UDR) == 0 );
+#endif
       if((SR & SPI_FLAG_TXE) > 0)
       {
           SPI->DR = *txPtr16++;
@@ -175,39 +183,59 @@ static inline void SPI_TransmitReceive(SPI_HandleTypeDef *hspi, uint8_t *pTxData
           *rxPtr16++ = (uint16_t)SPI->DR;
       }
   }
-  
-  // set to 8bit 
-  SET_BIT( SPI->CR2, SPI_RXFIFO_THRESHOLD );
 
+  // transmit byte
+  // receive 16bit 
   uint8_t *txPtr = (uint8_t*)txPtr16;
-  uint8_t *rxPtr = (uint8_t*)rxPtr16;
   uint8_t *txEndPtr = pTxData + Size;
-  uint8_t *rxEndPtr = pRxData + Size;
-
-  // send last byte and receive remaining bytes ( max 3 )
-  for(;rxPtr<rxEndPtr;)
+  for(;rxPtr16<rxEndPtr16;)
   {
-      unsigned int SR = SPI->SR;
+      uint_fast16_t SR = SPI->SR;
+#ifdef SPI_SAFETY
+      assert( (SR & SPI_FLAG_OVR) == 0 );
+      assert( (SR & SPI_SR_UDR) == 0 );
+#endif 
       if(((SR & SPI_FLAG_TXE) > 0) && (txPtr<txEndPtr))
       {
-          *(__IO uint8_t*)&SPI->DR = *txPtr++;
+        *(__IO uint8_t*)&SPI->DR = *txPtr++;
       }
+      if((SR & SPI_SR_RXNE) > 0)
+      {
+          *rxPtr16++ = (uint16_t)SPI->DR;
+      }
+  }
+ 
+  // set to 8bit receive 
+  SET_BIT( SPI->CR2, SPI_RXFIFO_THRESHOLD );
+
+  uint8_t *rxPtr = (uint8_t*)rxPtr16;
+  uint8_t *rxEndPtr = pRxData + Size;
+  // receive remaining byte if applicable
+  for(;rxPtr<rxEndPtr;)
+  {
+      uint_fast16_t SR = SPI->SR; 
       if((SR & SPI_SR_RXNE) > 0)
       {
           *rxPtr++ = *(__IO uint8_t *)&SPI->DR;
       }
   }
  
+#ifdef SPI_SAFETY
+  assert((SPI->SR & SPI_FLAG_FTLVL) == 0);
+  assert((SPI->SR & SPI_FLAG_FRLVL) == 0);
+  assert((SPI->SR & SPI_FLAG_BSY) == 0);
+//  __HAL_SPI_DISABLE(hspi);
+#endif
+
+  if(!prim)
+    __enable_irq();
+
   return;
 }
 
 static inline void SPI_Transmit(SPI_HandleTypeDef *hspi, uint8_t *pData, uint16_t Size)
 {
   SPI_TypeDef *SPI = hspi->Instance;
-
-  // nothing to do
-  if( Size == 0 )
-      return;
 
   /* Configure communication direction : 1Line */
   if (hspi->Init.Direction == SPI_DIRECTION_1LINE)
@@ -227,10 +255,18 @@ static inline void SPI_Transmit(SPI_HandleTypeDef *hspi, uint8_t *pData, uint16_
   uint16_t *txPtr16 = (uint16_t*)pData;
   uint16_t *txEndPtr16 = (uint16_t*)(pData + (Size & (UINT16_MAX-1)));
 
+  // get interupt status
+  uint_fast32_t prim = __get_PRIMASK();
+  // disable interrupts
+  __disable_irq();
+
   // transmit full 16bits first
   for(;txPtr16<txEndPtr16;)
   {
-      unsigned int SR = SPI->SR;
+      uint_fast16_t SR = SPI->SR;
+#ifdef SPI_SAFETY
+      assert( (SR & SPI_SR_UDR) == 0 );
+#endif       
       if((SR & SPI_FLAG_TXE) > 0)
       {
           SPI->DR = *txPtr16++;
@@ -243,7 +279,10 @@ static inline void SPI_Transmit(SPI_HandleTypeDef *hspi, uint8_t *pData, uint16_
   // send last byte
   for(;txPtr<txEndPtr;)
   {
-      unsigned int SR = SPI->SR;
+      uint_fast16_t SR = SPI->SR;
+#ifdef SPI_SAFETY
+      assert( (SR & SPI_SR_UDR) == 0 );
+#endif  
       if((SR & SPI_FLAG_TXE) > 0)
       {
           *(__IO uint8_t*)&SPI->DR = *txPtr++;
@@ -255,6 +294,9 @@ static inline void SPI_Transmit(SPI_HandleTypeDef *hspi, uint8_t *pData, uint16_
   {
     __HAL_SPI_CLEAR_OVRFLAG(hspi);
   }
+
+  if(!prim)
+    __enable_irq();
 
   return;
 }
@@ -283,14 +325,44 @@ static inline void SPI_Receive(SPI_HandleTypeDef *hspi, uint16_t txValue, uint8_
   uint16_t *rxPtr16 = (uint16_t*)pRxData;
   uint16_t txSizeBytes = Size;
 
+  // get interupt status
+  uint_fast32_t prim = __get_PRIMASK();
+  // disable interrupts
+  __disable_irq();
+
   // transmit full 16bits first
   for(;txSizeBytes>1;)
   {
-      unsigned int SR = SPI->SR;
+      uint_fast16_t SR = SPI->SR;
+#ifdef SPI_SAFETY
+      assert( (SR & SPI_FLAG_OVR) == 0 );
+      assert( (SR & SPI_SR_UDR) == 0 );
+#endif  
       if((SR & SPI_FLAG_TXE) > 0)
       {
           SPI->DR = txValue;
           txSizeBytes -= 2;
+      }
+      if((SR & SPI_SR_RXNE) > 0)
+      {
+          *rxPtr16++ = (uint16_t)SPI->DR;
+      }
+  }
+ 
+  // transmit byte
+  // receive 16bit 
+  uint16_t *rxEndPtr16 = (uint16_t*)(pRxData + (Size & (UINT16_MAX-1)));
+  for(;rxPtr16<rxEndPtr16;)
+  {
+      uint_fast16_t SR = SPI->SR;
+#ifdef SPI_SAFETY
+      assert( (SR & SPI_FLAG_OVR) == 0 );
+      assert( (SR & SPI_SR_UDR) == 0 );
+#endif 
+      if(((SR & SPI_FLAG_TXE) > 0) && (txSizeBytes>0))
+      {
+        *(__IO uint8_t*)&SPI->DR = (uint8_t)txValue;
+        --txSizeBytes;
       }
       if((SR & SPI_SR_RXNE) > 0)
       {
@@ -304,23 +376,33 @@ static inline void SPI_Receive(SPI_HandleTypeDef *hspi, uint16_t txValue, uint8_
   uint8_t *rxPtr = (uint8_t*)rxPtr16;
   uint8_t *rxEndPtr = pRxData + Size;
 
-  // send last byte and receive remaining bytes ( max 3 )
+  // receive remaining byte
   for(;rxPtr<rxEndPtr;)
   {
-      unsigned int SR = SPI->SR;
-      if(((SR & SPI_FLAG_TXE) > 0) && (txSizeBytes>0))
-      {
-          *(__IO uint8_t*)&SPI->DR = (uint8_t)txValue;
-          --txSizeBytes;
-      }
+      uint_fast16_t SR = SPI->SR;
+#ifdef SPI_SAFETY
+      assert( (SR & SPI_FLAG_OVR) == 0 );
+      assert( (SR & SPI_SR_UDR) == 0 );
+#endif 
       if((SR & SPI_SR_RXNE) > 0)
       {
           *rxPtr++ = *(__IO uint8_t *)&SPI->DR;
       }
   }
  
+#ifdef SPI_SAFETY
+  assert((SPI->SR & SPI_FLAG_FTLVL) == 0);
+  assert((SPI->SR & SPI_FLAG_FRLVL) == 0);
+  assert((SPI->SR & SPI_FLAG_BSY) == 0);
+//  __HAL_SPI_DISABLE(hspi);
+#endif
+
+  if(!prim)
+    __enable_irq();
+
   return;
 }
+
 
 // assert: tx_data == tx_buffer (local call), tx_len > 0
 // DMA is disabled as one extra byte is read
