@@ -289,11 +289,24 @@ static inline void SPI_Transmit(SPI_HandleTypeDef *hspi, uint8_t *pData, uint16_
       }
   } 
 
+  // flush rx/tx fifo
+  while(SPI->SR & SPI_FLAG_FTLVL);
+  while(SPI->SR & SPI_FLAG_BSY);
+  for(;SPI->SR & SPI_FLAG_FRLVL;)
+      (void)SPI->DR;
+
   /* Clear overrun flag in 2 Lines communication mode because received is not read */
   if (hspi->Init.Direction == SPI_DIRECTION_2LINES)
   {
     __HAL_SPI_CLEAR_OVRFLAG(hspi);
   }
+
+#ifdef SPI_SAFETY
+  assert((SPI->SR & SPI_FLAG_FTLVL) == 0);
+  assert((SPI->SR & SPI_FLAG_FRLVL) == 0);
+  assert((SPI->SR & SPI_FLAG_BSY) == 0);
+//  __HAL_SPI_DISABLE(hspi);
+#endif
 
   if(!prim)
     __enable_irq();
