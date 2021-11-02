@@ -81,22 +81,26 @@ static void packet_handler (uint8_t packet_type, uint16_t channel, uint8_t *pack
 
     bd_addr_t event_addr;
     uint8_t   rfcomm_channel_nr;
+    hci_con_handle_t con_handle;
 
 	switch (packet_type) {
 		case HCI_EVENT_PACKET:
 			switch (hci_event_packet_get_type(packet)) {
 
+			    case GAP_EVENT_PAIRING_STARTED:
+			        con_handle = gap_event_pairing_started_get_con_handle(packet);
+			        printf("Pairing started, trigger Read Remote Features Query for con handle 0x%04x\n", con_handle);
+                    hci_remote_features_query(con_handle);
+                    break;
+
                 case HCI_EVENT_PIN_CODE_REQUEST:
                     // inform about pin code request
-                    printf("Pin code request - using '0000'\n");
-                    hci_event_pin_code_request_get_bd_addr(packet, event_addr);
-                    gap_pin_code_response(event_addr, "0000");
+                    printf("Pin code request\n");
                     break;
 
                 case HCI_EVENT_USER_CONFIRMATION_REQUEST:
                     // inform about user confirmation request
                     printf("SSP User Confirmation Request with numeric value '%06"PRIu32"'\n", little_endian_read_32(packet, 8));
-                    printf("SSP User Confirmation Auto accept\n");
                     break;
 
                 case RFCOMM_EVENT_INCOMING_CONNECTION:
@@ -174,6 +178,7 @@ int btstack_main(int argc, const char * argv[])
     gap_ssp_set_io_capability(SSP_IO_CAPABILITY_DISPLAY_YES_NO);
     gap_set_local_name("SPP Streamer 00:00:00:00:00:00");
     gap_discoverable_control(1);
+    gap_ssp_set_auto_accept(0);
 
     // turn on!
 	hci_power_control(HCI_POWER_ON);
