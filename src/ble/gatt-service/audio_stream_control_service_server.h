@@ -63,6 +63,12 @@ extern "C" {
  */
 void audio_stream_control_service_server_init(void);
 
+/**
+ * @brief Register callback.
+ * @param callback
+ */
+void audio_stream_control_service_server_register_packet_handler(btstack_packet_handler_t callback);
+
 /* API_END */
 
 #if defined __cplusplus

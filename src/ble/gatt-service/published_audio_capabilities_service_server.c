@@ -37,17 +37,78 @@
 
 #define BTSTACK_FILE__ "published_audio_capabilities_service_server.c"
 
-
-#include "btstack_defines.h"
 #include "ble/att_db.h"
 #include "ble/att_server.h"
-#include "btstack_util.h"
 #include "bluetooth_gatt.h"
 #include "btstack_debug.h"
+#include "btstack_defines.h"
+#include "btstack_event.h"
+#include "btstack_util.h"
 
 #include "ble/gatt-service/published_audio_capabilities_service_server.h"
 
+static att_service_handler_t    published_audio_capabilities_service;
+static hci_con_handle_t         pacs_con_handle;
+static btstack_packet_handler_t pacs_event_callback;
+
+static uint16_t published_audio_capabilities_service_read_callback(hci_con_handle_t con_handle, uint16_t attribute_handle, uint16_t offset, uint8_t * buffer, uint16_t buffer_size){
+    UNUSED(con_handle);
+    return 0;
+}
+
+static int published_audio_capabilities_service_write_callback(hci_con_handle_t con_handle, uint16_t attribute_handle, uint16_t transaction_mode, uint16_t offset, uint8_t *buffer, uint16_t buffer_size){
+    UNUSED(transaction_mode);
+    UNUSED(offset);
+    return 0;
+}
+
+static void published_audio_capabilities_service_server_reset_values(void){
+    pacs_con_handle = HCI_CON_HANDLE_INVALID;
+}
+
+static void published_audio_capabilities_service_packet_handler(uint8_t packet_type, uint16_t channel, uint8_t *packet, uint16_t size){
+    UNUSED(channel);
+    UNUSED(packet);
+    UNUSED(size);
+
+    if (packet_type != HCI_EVENT_PACKET){
+        return;
+    }
+
+    hci_con_handle_t con_handle;
+    switch (hci_event_packet_get_type(packet)) {
+        case HCI_EVENT_DISCONNECTION_COMPLETE:
+            con_handle = hci_event_disconnection_complete_get_connection_handle(packet);
+            if (pacs_con_handle == con_handle){
+                published_audio_capabilities_service_server_reset_values();
+            }
+            break;
+        default:
+            break;
+    }
+}
+
 void published_audio_capabilities_service_server_init(void){
-    
+    // get service handle range
+    uint16_t start_handle = 0;
+    uint16_t end_handle   = 0xfff;
+    int service_found = gatt_server_get_handle_range_for_service_with_uuid16(ORG_BLUETOOTH_SERVICE_PUBLISHED_AUDIO_CAPABILITIES_SERVICE, &start_handle, &end_handle);
+    btstack_assert(service_found != 0);
+    UNUSED(service_found);
+
+    published_audio_capabilities_service_server_reset_values();
+
+    // register service with ATT Server
+    published_audio_capabilities_service.start_handle   = start_handle;
+    published_audio_capabilities_service.end_handle     = end_handle;
+    published_audio_capabilities_service.read_callback  = &published_audio_capabilities_service_read_callback;
+    published_audio_capabilities_service.write_callback = &published_audio_capabilities_service_write_callback;
+    published_audio_capabilities_service.packet_handler = published_audio_capabilities_service_packet_handler;
+    att_server_register_service_handler(&published_audio_capabilities_service);
+}
+
+void published_audio_capabilities_service_server_register_packet_handler(btstack_packet_handler_t callback){
+    btstack_assert(callback != NULL);
+    pacs_event_callback = callback;
 }
 
