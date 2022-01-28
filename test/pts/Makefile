@@ -84,9 +84,12 @@ AVRCP += \
 
 SRC_BLE_GATT_SERVICE_FILES += \
 	audio_input_control_service_server.c \
+	audio_stream_control_service_server.c \
+	broadcast_audio_scan_service_server.c \
 	microphone_control_service_server.c \
+	published_audio_capabilities_service_server.c \
 	volume_control_service_server.c \
-	
+
 # include ${BTSTACK_ROOT}/example/Makefile.inc
 
 HXCMOD_PLAYER = \

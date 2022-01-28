@@ -492,6 +492,11 @@ int btstack_main(void)
 
     volume_control_service_server_init(vcs_volume_state_setting , vcs_volume_state_mute, aics_info_num, aics_info, vocs_info_num, vocs_info);
     
+    broadcast_audio_scan_service_server_init();
+    audio_stream_control_service_server_init();
+    published_audio_capabilities_service_server_init();
+
+
     // setup advertisements
     uint16_t adv_int_min = 0x0030;
     uint16_t adv_int_max = 0x0030;
