@@ -51,19 +51,69 @@ static att_service_handler_t    audio_stream_control_service;
 static hci_con_handle_t         ascs_con_handle;
 static btstack_packet_handler_t ascs_event_callback;
 
+// characteristic: SINK_ASE     
+static uint16_t  ascs_sink_ase_handle;
+static uint16_t  ascs_sink_ase_client_configuration_handle;
+static uint16_t  ascs_sink_ase_client_configuration;
+
+// characteristic: SOURCE_ASE 
+static uint16_t  ascs_source_ase_handle;
+static uint16_t  ascs_source_ase_client_configuration_handle;
+static uint16_t  ascs_source_ase_client_configuration;
+
+// characteristic: ASE_CONTROL_POINT
+static uint16_t  ascs_ase_control_point_handle;
+
+static void audio_stream_control_service_server_reset_values(void){
+    ascs_con_handle = HCI_CON_HANDLE_INVALID;
+    ascs_sink_ase_client_configuration = 0;
+    ascs_source_ase_client_configuration = 0;
+}
+
+static void ascs_set_con_handle(hci_con_handle_t con_handle, uint16_t configuration){
+    ascs_con_handle = (configuration == 0) ? HCI_CON_HANDLE_INVALID : con_handle;
+}
+
 static uint16_t audio_stream_control_service_read_callback(hci_con_handle_t con_handle, uint16_t attribute_handle, uint16_t offset, uint8_t * buffer, uint16_t buffer_size){
     UNUSED(con_handle);
+    
+    if (attribute_handle == ascs_sink_ase_handle){
+        // TODO
+    }
+
+    if (attribute_handle == ascs_source_ase_handle){
+        // TODO
+    }
+
+    if (attribute_handle == ascs_sink_ase_client_configuration_handle){
+        return att_read_callback_handle_little_endian_16(ascs_sink_ase_client_configuration, offset, buffer, buffer_size);
+    }
+    
+    if (attribute_handle == ascs_source_ase_client_configuration_handle){
+        return att_read_callback_handle_little_endian_16(ascs_source_ase_client_configuration, offset, buffer, buffer_size);
+    }
+
     return 0;
 }
 
 static int audio_stream_control_service_write_callback(hci_con_handle_t con_handle, uint16_t attribute_handle, uint16_t transaction_mode, uint16_t offset, uint8_t *buffer, uint16_t buffer_size){
     UNUSED(transaction_mode);
     UNUSED(offset);
-    return 0;
-}
 
-static void audio_stream_control_service_server_reset_values(void){
-    ascs_con_handle = HCI_CON_HANDLE_INVALID;
+    if (attribute_handle == ascs_ase_control_point_handle){
+        // TODO
+    }
+
+    else if (attribute_handle == ascs_sink_ase_client_configuration_handle){
+        ascs_sink_ase_client_configuration = little_endian_read_16(buffer, 0);
+        ascs_set_con_handle(con_handle, ascs_sink_ase_client_configuration);
+    }
+
+    else if (attribute_handle == ascs_source_ase_client_configuration_handle){
+        ascs_source_ase_client_configuration = little_endian_read_16(buffer, 0);
+        ascs_set_con_handle(con_handle, ascs_source_ase_client_configuration);
+    }
+    return 0;
 }
 
 static void audio_stream_control_service_packet_handler(uint8_t packet_type, uint16_t channel, uint8_t *packet, uint16_t size){
@@ -97,6 +147,16 @@ void audio_stream_control_service_server_init(void){
     UNUSED(service_found);
 
     audio_stream_control_service_server_reset_values();
+
+    ascs_sink_ase_handle = gatt_server_get_value_handle_for_characteristic_with_uuid16(start_handle, end_handle, ORG_BLUETOOTH_CHARACTERISTIC_SINK_ASE);;
+    ascs_sink_ase_client_configuration_handle = gatt_server_get_client_configuration_handle_for_characteristic_with_uuid16(start_handle, end_handle, ORG_BLUETOOTH_CHARACTERISTIC_SINK_ASE);;
+
+    ascs_source_ase_handle = gatt_server_get_value_handle_for_characteristic_with_uuid16(start_handle, end_handle, ORG_BLUETOOTH_CHARACTERISTIC_SOURCE_ASE);;
+    ascs_source_ase_client_configuration_handle = gatt_server_get_client_configuration_handle_for_characteristic_with_uuid16(start_handle, end_handle, ORG_BLUETOOTH_CHARACTERISTIC_SOURCE_ASE);;
+
+    ascs_ase_control_point_handle = gatt_server_get_value_handle_for_characteristic_with_uuid16(start_handle, end_handle, ORG_BLUETOOTH_CHARACTERISTIC_ASE_CONTROL_POINT);;
+
+    log_info("Found ASCS service 0x%02x-0x%02x", start_handle, end_handle);
 
     // register service with ATT Server
     audio_stream_control_service.start_handle   = start_handle;
