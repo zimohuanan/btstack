@@ -52,19 +52,49 @@ static att_service_handler_t    broadcast_audio_scan_service;
 static hci_con_handle_t         bass_con_handle;
 static btstack_packet_handler_t bass_event_callback;
 
+// characteristic: AUDIO_SCAN_CONTROL_POINT
+static uint16_t  bass_audio_scan_control_point_handle;
+
+// characteristic:  RECEIVE_STATE 
+static uint16_t  bass_receive_state_handle;
+static uint16_t  bass_receive_state_client_configuration_handle;
+static uint16_t  bass_receive_state_client_configuration;
+
+static void broadcast_audio_scan_service_server_reset_values(void){
+    bass_con_handle = HCI_CON_HANDLE_INVALID;
+    bass_receive_state_client_configuration = 0;
+}
+
+static void bass_set_con_handle(hci_con_handle_t con_handle, uint16_t configuration){
+    bass_con_handle = (configuration == 0) ? HCI_CON_HANDLE_INVALID : con_handle;
+}
+
 static uint16_t broadcast_audio_scan_service_read_callback(hci_con_handle_t con_handle, uint16_t attribute_handle, uint16_t offset, uint8_t * buffer, uint16_t buffer_size){
     UNUSED(con_handle);
+
+    if (attribute_handle == bass_receive_state_handle){
+        // TODO
+    }
+
+    if (attribute_handle == bass_receive_state_client_configuration_handle){
+        return att_read_callback_handle_little_endian_16(bass_receive_state_client_configuration, offset, buffer, buffer_size);
+    }
     return 0;
 }
 
 static int broadcast_audio_scan_service_write_callback(hci_con_handle_t con_handle, uint16_t attribute_handle, uint16_t transaction_mode, uint16_t offset, uint8_t *buffer, uint16_t buffer_size){
     UNUSED(transaction_mode);
     UNUSED(offset);
-    return 0;
-}
 
-static void broadcast_audio_scan_service_server_reset_values(void){
-    bass_con_handle = HCI_CON_HANDLE_INVALID;
+    if (attribute_handle == bass_audio_scan_control_point_handle){
+        // TODO
+    }
+
+    else if (attribute_handle == bass_receive_state_client_configuration_handle){
+        bass_receive_state_client_configuration = little_endian_read_16(buffer, 0);
+        bass_set_con_handle(con_handle, bass_receive_state_client_configuration);
+    }
+    return 0;
 }
 
 static void broadcast_audio_scan_service_packet_handler(uint8_t packet_type, uint16_t channel, uint8_t *packet, uint16_t size){
@@ -98,6 +128,13 @@ void broadcast_audio_scan_service_server_init(void){
     UNUSED(service_found);
 
     broadcast_audio_scan_service_server_reset_values();
+
+    bass_audio_scan_control_point_handle = gatt_server_get_value_handle_for_characteristic_with_uuid16(start_handle, end_handle, ORG_BLUETOOTH_CHARACTERISTIC_BROADCAST_AUDIO_SCAN_CONTROL_POINT);
+
+    bass_receive_state_handle = gatt_server_get_value_handle_for_characteristic_with_uuid16(start_handle, end_handle, ORG_BLUETOOTH_CHARACTERISTIC_BROADCAST_RECEIVE_STATE);
+    bass_receive_state_client_configuration_handle = gatt_server_get_client_configuration_handle_for_characteristic_with_uuid16(start_handle, end_handle, ORG_BLUETOOTH_CHARACTERISTIC_BROADCAST_RECEIVE_STATE);
+
+    log_info("Found BASS service 0x%02x-0x%02x", start_handle, end_handle);
 
     // register service with ATT Server
     broadcast_audio_scan_service.start_handle   = start_handle;
