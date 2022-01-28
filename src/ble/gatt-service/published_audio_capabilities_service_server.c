@@ -51,19 +51,134 @@ static att_service_handler_t    published_audio_capabilities_service;
 static hci_con_handle_t         pacs_con_handle;
 static btstack_packet_handler_t pacs_event_callback;
 
+// characteristic: SINK_PAC                      READ  | NOTIFY  |  
+static uint16_t  pacs_sinc_pac_handle;
+static uint16_t  pacs_sinc_pac_client_configuration_handle;
+static uint16_t  pacs_sinc_pac_client_configuration;
+
+// characteristic: SINK_AUDIO_LOCATIONS          READ  | NOTIFY  | WRITE 
+static uint16_t  pacs_sink_audio_locations_handle;
+static uint16_t  pacs_sink_audio_locations_client_configuration_handle;
+static uint16_t  pacs_sink_audio_locations_client_configuration;
+
+// characteristic: SOURCE_PAC                    READ  | NOTIFY  |       
+static uint16_t  pacs_source_pac_handle;
+static uint16_t  pacs_source_pac_client_configuration_handle;
+static uint16_t  pacs_source_pac_client_configuration;
+
+// characteristic: SOURCE_AUDIO_LOCATIONS        READ  | NOTIFY  | WRITE 
+static uint16_t  pacs_source_audio_locations_handle;
+static uint16_t  pacs_source_audio_locations_client_configuration_handle;
+static uint16_t  pacs_source_audio_locations_client_configuration;
+
+// characteristic: AVAILABLE_AUDIO_CONTEXTS      READ  |     
+static uint16_t  pacs_available_audio_contexts_handle;
+
+// characteristic: SUPPORTED_AUDIO_CONTEXTS      READ  | NOTIFY  |  
+static uint16_t  pacs_supported_audio_contexts_handle;
+static uint16_t  pacs_supported_audio_contexts_client_configuration_handle;
+static uint16_t  pacs_supported_audio_contexts_client_configuration;     
+
+
+static void published_audio_capabilities_service_server_reset_values(void){
+    pacs_con_handle = HCI_CON_HANDLE_INVALID;
+    pacs_sinc_pac_client_configuration = 0;
+    pacs_sink_audio_locations_client_configuration = 0;
+    pacs_source_pac_client_configuration = 0;
+    pacs_source_audio_locations_client_configuration = 0;
+    pacs_supported_audio_contexts_client_configuration = 0; 
+}
+
+static void pacs_set_con_handle(hci_con_handle_t con_handle, uint16_t configuration){
+    pacs_con_handle = (configuration == 0) ? HCI_CON_HANDLE_INVALID : con_handle;
+}
+
 static uint16_t published_audio_capabilities_service_read_callback(hci_con_handle_t con_handle, uint16_t attribute_handle, uint16_t offset, uint8_t * buffer, uint16_t buffer_size){
     UNUSED(con_handle);
+    if (attribute_handle == pacs_sinc_pac_handle){
+        // TODO
+    }
+
+    if (attribute_handle == pacs_sink_audio_locations_handle){
+        // TODO
+    }
+    
+    if (attribute_handle == pacs_source_pac_handle){
+        // TODO
+    }
+
+    if (attribute_handle == pacs_source_audio_locations_handle){
+        // TODO
+    }
+    
+    if (attribute_handle == pacs_supported_audio_contexts_handle){
+        // TODO
+    }
+
+    if (attribute_handle == pacs_available_audio_contexts_handle){
+        // TODO
+    }
+    
+    if (attribute_handle == pacs_sinc_pac_client_configuration_handle){
+        return att_read_callback_handle_little_endian_16(pacs_sinc_pac_client_configuration, offset, buffer, buffer_size);
+    }
+
+    if (attribute_handle == pacs_sink_audio_locations_client_configuration_handle){
+        return att_read_callback_handle_little_endian_16(pacs_sink_audio_locations_client_configuration, offset, buffer, buffer_size);
+    }
+    
+    if (attribute_handle == pacs_source_pac_client_configuration_handle){
+        return att_read_callback_handle_little_endian_16(pacs_source_pac_client_configuration, offset, buffer, buffer_size);
+    }
+
+    if (attribute_handle == pacs_source_audio_locations_client_configuration_handle){
+        return att_read_callback_handle_little_endian_16(pacs_source_audio_locations_client_configuration, offset, buffer, buffer_size);
+    }
+    
+    if (attribute_handle == pacs_supported_audio_contexts_client_configuration_handle){
+        return att_read_callback_handle_little_endian_16(pacs_supported_audio_contexts_client_configuration, offset, buffer, buffer_size);
+    }
     return 0;
 }
 
 static int published_audio_capabilities_service_write_callback(hci_con_handle_t con_handle, uint16_t attribute_handle, uint16_t transaction_mode, uint16_t offset, uint8_t *buffer, uint16_t buffer_size){
     UNUSED(transaction_mode);
     UNUSED(offset);
-    return 0;
-}
 
-static void published_audio_capabilities_service_server_reset_values(void){
-    pacs_con_handle = HCI_CON_HANDLE_INVALID;
+    if (attribute_handle == pacs_sink_audio_locations_handle){
+        // TODO
+    }
+
+    else if (attribute_handle == pacs_source_audio_locations_handle){
+        // TODO
+    }
+
+    else if (attribute_handle == pacs_sinc_pac_client_configuration_handle){
+        pacs_sinc_pac_client_configuration = little_endian_read_16(buffer, 0);
+        pacs_set_con_handle(con_handle, pacs_sinc_pac_client_configuration);
+    }
+
+    else if (attribute_handle == pacs_sink_audio_locations_client_configuration_handle){
+        pacs_sink_audio_locations_client_configuration = little_endian_read_16(buffer, 0);
+        pacs_set_con_handle(con_handle, pacs_sink_audio_locations_client_configuration);
+    }
+    
+    else if (attribute_handle == pacs_source_pac_client_configuration_handle){
+        pacs_source_pac_client_configuration = little_endian_read_16(buffer, 0);
+        pacs_set_con_handle(con_handle, pacs_source_pac_client_configuration);
+    }
+
+    else if (attribute_handle == pacs_source_audio_locations_client_configuration_handle){
+        pacs_source_audio_locations_client_configuration = little_endian_read_16(buffer, 0);
+        pacs_set_con_handle(con_handle, pacs_source_audio_locations_client_configuration);
+    }
+    
+    else if (attribute_handle == pacs_supported_audio_contexts_client_configuration_handle){
+        pacs_supported_audio_contexts_client_configuration = little_endian_read_16(buffer, 0);
+        pacs_set_con_handle(con_handle, pacs_supported_audio_contexts_client_configuration);
+    }
+
+    return 0;
 }
 
 static void published_audio_capabilities_service_packet_handler(uint8_t packet_type, uint16_t channel, uint8_t *packet, uint16_t size){
@@ -97,6 +212,25 @@ void published_audio_capabilities_service_server_init(void){
     UNUSED(service_found);
 
     published_audio_capabilities_service_server_reset_values();
+
+    pacs_sinc_pac_handle = gatt_server_get_value_handle_for_characteristic_with_uuid16(start_handle, end_handle, ORG_BLUETOOTH_CHARACTERISTIC_SINK_PAC);
+    pacs_sinc_pac_client_configuration_handle = gatt_server_get_client_configuration_handle_for_characteristic_with_uuid16(start_handle, end_handle, ORG_BLUETOOTH_CHARACTERISTIC_SINK_PAC);
+
+    pacs_sink_audio_locations_handle = gatt_server_get_value_handle_for_characteristic_with_uuid16(start_handle, end_handle, ORG_BLUETOOTH_CHARACTERISTIC_SINK_AUDIO_LOCATIONS);
+    pacs_sink_audio_locations_client_configuration_handle = gatt_server_get_client_configuration_handle_for_characteristic_with_uuid16(start_handle, end_handle, ORG_BLUETOOTH_CHARACTERISTIC_SINK_AUDIO_LOCATIONS);
+
+    pacs_source_pac_handle = gatt_server_get_value_handle_for_characteristic_with_uuid16(start_handle, end_handle, ORG_BLUETOOTH_CHARACTERISTIC_SOURCE_PAC);
+    pacs_source_pac_client_configuration_handle = gatt_server_get_client_configuration_handle_for_characteristic_with_uuid16(start_handle, end_handle, ORG_BLUETOOTH_CHARACTERISTIC_SOURCE_PAC);
+
+    pacs_source_audio_locations_handle = gatt_server_get_value_handle_for_characteristic_with_uuid16(start_handle, end_handle, ORG_BLUETOOTH_CHARACTERISTIC_SOURCE_AUDIO_LOCATIONS);
+    pacs_source_audio_locations_client_configuration_handle = gatt_server_get_client_configuration_handle_for_characteristic_with_uuid16(start_handle, end_handle, ORG_BLUETOOTH_CHARACTERISTIC_SOURCE_AUDIO_LOCATIONS);
+
+    pacs_available_audio_contexts_handle = gatt_server_get_value_handle_for_characteristic_with_uuid16(start_handle, end_handle, ORG_BLUETOOTH_CHARACTERISTIC_AVAILABLE_AUDIO_CONTEXTS);
+
+    pacs_supported_audio_contexts_handle = gatt_server_get_value_handle_for_characteristic_with_uuid16(start_handle, end_handle, ORG_BLUETOOTH_CHARACTERISTIC_SUPPORTED_AUDIO_CONTEXTS);
+    pacs_supported_audio_contexts_client_configuration_handle = gatt_server_get_client_configuration_handle_for_characteristic_with_uuid16(start_handle, end_handle, ORG_BLUETOOTH_CHARACTERISTIC_SUPPORTED_AUDIO_CONTEXTS);
+
+    log_info("Found PACS service 0x%02x-0x%02x", start_handle, end_handle);
 
     // register service with ATT Server
     published_audio_capabilities_service.start_handle   = start_handle;
