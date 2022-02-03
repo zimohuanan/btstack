@@ -80,6 +80,12 @@ static uint16_t  pacs_supported_audio_contexts_client_configuration_handle;
 static uint16_t  pacs_supported_audio_contexts_client_configuration;     
 
 
+static const pacs_record_t * pacs_sink_pac_records;
+static uint8_t pacs_sink_pac_records_num;
+
+static const  pacs_record_t * pacs_source_pac_records;
+static uint8_t pacs_source_pac_records_num;
+
 static void published_audio_capabilities_service_server_reset_values(void){
     pacs_con_handle = HCI_CON_HANDLE_INVALID;
     pacs_sinc_pac_client_configuration = 0;
@@ -144,6 +150,7 @@ static uint16_t published_audio_capabilities_service_read_callback(hci_con_handl
 static int published_audio_capabilities_service_write_callback(hci_con_handle_t con_handle, uint16_t attribute_handle, uint16_t transaction_mode, uint16_t offset, uint8_t *buffer, uint16_t buffer_size){
     UNUSED(transaction_mode);
     UNUSED(offset);
+    UNUSED(buffer_size);
 
     if (attribute_handle == pacs_sink_audio_locations_handle){
         // TODO
@@ -203,7 +210,7 @@ static void published_audio_capabilities_service_packet_handler(uint8_t packet_t
     }
 }
 
-void published_audio_capabilities_service_server_init(void){
+void published_audio_capabilities_service_server_init(const pacs_record_t * sink_pac_records, uint8_t sink_pac_records_num, const pacs_record_t * source_pac_records, uint8_t source_pac_records_num){
     // get service handle range
     uint16_t start_handle = 0;
     uint16_t end_handle   = 0xfff;
@@ -212,6 +219,12 @@ void published_audio_capabilities_service_server_init(void){
     UNUSED(service_found);
 
     published_audio_capabilities_service_server_reset_values();
+
+    pacs_sink_pac_records = sink_pac_records;
+    pacs_sink_pac_records_num = sink_pac_records_num;
+
+    pacs_source_pac_records = source_pac_records;
+    pacs_source_pac_records_num = source_pac_records_num;
 
     pacs_sinc_pac_handle = gatt_server_get_value_handle_for_characteristic_with_uuid16(start_handle, end_handle, ORG_BLUETOOTH_CHARACTERISTIC_SINK_PAC);
     pacs_sinc_pac_client_configuration_handle = gatt_server_get_client_configuration_handle_for_characteristic_with_uuid16(start_handle, end_handle, ORG_BLUETOOTH_CHARACTERISTIC_SINK_PAC);

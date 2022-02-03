@@ -58,10 +58,63 @@ extern "C" {
  * To use with your application, add `#import <published_audio_capabilities_service.gatt>` to your .gatt file. 
  */
 
+// Audio capabilities
+typedef enum {
+    PACS_CODEC_SPECIFIC_CAPABILITY_TYPE_SAMPLING_FREQUENCY = 0x01,
+    PACS_CODEC_SPECIFIC_CAPABILITY_TYPE_FRAME_DURATION,
+    PACS_CODEC_SPECIFIC_CAPABILITY_TYPE_AUDIO_CHANNEL_ALLOCATION,
+    PACS_CODEC_SPECIFIC_CAPABILITY_TYPE_OCTETS_PER_CODEC_FRAME,
+    PACS_CODEC_SPECIFIC_CAPABILITY_TYPE_CODEC_FRAME_BLOCKS_PER_SDU,
+} pacs_codec_specific_capability_type_t;
+
+typedef enum {
+    PACS_CODEC_SAMPLING_FREQUENCY_8000_HZ   = 0x01,
+    PACS_CODEC_SAMPLING_FREQUENCY_11025_HZ  = 0x02,
+    PACS_CODEC_SAMPLING_FREQUENCY_16000_HZ  = 0x03,
+    PACS_CODEC_SAMPLING_FREQUENCY_22050_HZ  = 0x04,
+    PACS_CODEC_SAMPLING_FREQUENCY_24000_HZ  = 0x05,
+    PACS_CODEC_SAMPLING_FREQUENCY_32000_HZ  = 0x06,
+    PACS_CODEC_SAMPLING_FREQUENCY_44100_HZ  = 0x07,
+    PACS_CODEC_SAMPLING_FREQUENCY_48000_HZ  = 0x08,
+    PACS_CODEC_SAMPLING_FREQUENCY_88200_HZ  = 0x09,
+    PACS_CODEC_SAMPLING_FREQUENCY_96000_HZ  = 0x0A,
+    PACS_CODEC_SAMPLING_FREQUENCY_176400_HZ = 0x0B,
+    PACS_CODEC_SAMPLING_FREQUENCY_192000_HZ = 0x0C,
+    PACS_CODEC_SAMPLING_FREQUENCY_384000_HZ = 0x0D
+} pacs_codec_sampling_frequency_t;
+
+typedef enum {
+    PACS_CODEC_FRAME_DURATION_7_5_MS = 0x00,
+    PACS_CODEC_FRAME_DURATION_10_MS = 0x01
+} pacs_codec_frame_duration_t;
+
+typedef struct {
+    pacs_codec_specific_capability_type_t type;
+    uint8_t value_length; 
+    const uint8_t * value; // max 5 bytes
+} pacs_codec_specific_capability_t;
+
+typedef struct {
+    // codec_id: 0:Coding Format, 1-2: Company ID, 3-4: Vendor-specific codec_ID 
+    const uint8_t * codec_id;
+    
+    uint8_t codec_specific_capabilities_length;
+    const   pacs_codec_specific_capability_t * capabilities;
+    uint8_t codec_specific_capabilities_num;
+    
+    uint8_t metadata_length;
+    const uint8_t * metadata;
+} pacs_record_t;
+
+
 /**
  * @brief Init Published Audio Capabilities Service Server with ATT DB
+ * @param sink_pac_records
+ * @param sink_pac_records_num
+ * @param source_pac_records
+ * @param source_pac_records_num
  */
-void published_audio_capabilities_service_server_init(void);
+void published_audio_capabilities_service_server_init(const pacs_record_t * sink_pac_records, uint8_t sink_pac_records_num, const pacs_record_t * source_pac_records, uint8_t source_pac_records_num);
 
 /**
  * @brief Register callback.

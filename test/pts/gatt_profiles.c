@@ -113,7 +113,7 @@ static aics_info_t aics_info[] = {
     }
 
 };
-static uint8_t aics_info_num = 2;
+static uint8_t aics_info_num = 3;
 
 static vocs_info_t vocs_info[] = {
         {
@@ -129,6 +129,23 @@ static vocs_info_t vocs_info[] = {
 };
 static uint8_t vocs_info_num = 2;
 
+static uint8_t my_codec_id[] = {0,1,2,3,4};
+const uint8_t  my_value[] = {1,2,3};
+static pacs_codec_specific_capability_t my_capability = {
+       PACS_CODEC_SPECIFIC_CAPABILITY_TYPE_SAMPLING_FREQUENCY,
+       3,
+       my_value
+    };
+const uint8_t my_metadata[] = {1,2,3,4};
+
+static pacs_record_t record = {
+    my_codec_id,
+    10,
+    &my_capability,
+    1,
+    4,
+    my_metadata
+};
 
 #ifdef ENABLE_GATT_OVER_CLASSIC
 #include "classic/gatt_sdp.h"
@@ -494,7 +511,7 @@ int btstack_main(void)
     
     broadcast_audio_scan_service_server_init();
     audio_stream_control_service_server_init();
-    published_audio_capabilities_service_server_init();
+    published_audio_capabilities_service_server_init(NULL, 0, NULL, 0);
 
 
     // setup advertisements
