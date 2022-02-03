@@ -1,3 +1,5 @@
+build-asan
+build-coverage
 battery_service_test
 battery_service_test.h
 bond_management_service_test
