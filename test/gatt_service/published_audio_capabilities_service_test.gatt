@@ -1,0 +1,2 @@
+// add Published Audio Capabilities Service
+#import <published_audio_capabilities_service.gatt>

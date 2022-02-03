@@ -1,4 +1,12 @@
-battery_service_test 
-battery_service_profile.h
-device_information_service_test 
-device_information_service_profile.h
+battery_service_test
+battery_service_test.h
+bond_management_service_test
+bond_management_service_test.h
+device_information_service_test
+device_information_service_test.h
+microphone_control_service_test
+microphone_control_service_test.h
+published_audio_capabilities_service_test
+published_audio_capabilities_service_test.h
+tx_power_service_test
+tx_power_service_test.h
