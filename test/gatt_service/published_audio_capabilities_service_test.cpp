@@ -24,17 +24,16 @@
 #include "published_audio_capabilities_service_test.h"
 #include "mock_att_server.h"
 
-static uint8_t my_codec_id[] = {0x00,0x01,0x02,0x03,0x04};
-const uint8_t  my_value[]    = {0x06,0x07,0x08};
+const uint8_t  my_value[]    = {0x06, 0x07};
 static pacs_codec_specific_capability_t my_capability = {
         PACS_CODEC_SPECIFIC_CAPABILITY_TYPE_SAMPLING_FREQUENCY,
         my_value
     };
-const uint8_t my_metadata[] = {0x09,0x0A,0x0B,0x0C};
+const uint8_t my_metadata[] = {0x09, 0x0A, 0x0B, 0x0C};
 
 static pacs_record_t sink_record_0 = {
     // codec ID
-    my_codec_id,
+    {0x00, 0xAABB, 0xCCDD},
     // num capabilities
     1, 
     // capabilities
@@ -49,9 +48,9 @@ uint8_t expected_response_sink_pac_record[] = {
         // num_records
         0x01,
         // codec id
-        0x00, 0x01, 0x02, 0x03, 0x04,
+        0x00, 0xBB, 0xAA, 0xDD, 0xCC,
         // cap. length, value_len + 1 byte for type, type, value
-        0x05, 0x04, (uint8_t)PACS_CODEC_SPECIFIC_CAPABILITY_TYPE_SAMPLING_FREQUENCY, 0x06, 0x07, 0x08,
+        0x04, 0x03, (uint8_t)PACS_CODEC_SPECIFIC_CAPABILITY_TYPE_SAMPLING_FREQUENCY, 0x06, 0x07,
         // metadata len, metadata
         0x04, 0x09, 0x0A, 0x0B, 0x0C
 };
@@ -104,7 +103,7 @@ TEST(PUBLISHED_AUDIO_CAPABILITIES_SERVICE_SERVER, read_pac_handle_client_configu
 TEST(PUBLISHED_AUDIO_CAPABILITIES_SERVICE_SERVER, read_whole_sink_pac_record) {
     uint8_t  response[20];
     uint16_t response_len = mock_att_service_read_callback(con_handle, pacs_sinc_pac_handle_value, 0, response, sizeof(response));
-    CHECK_EQUAL(17, response_len);
+    CHECK_EQUAL(sizeof(expected_response_sink_pac_record), response_len);
     MEMCMP_EQUAL(expected_response_sink_pac_record, response, sizeof (expected_response_sink_pac_record));
 }
 

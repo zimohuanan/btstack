@@ -195,7 +195,10 @@ static uint16_t pacs_store_records(const pacs_record_t * pacs, uint8_t pac_recor
     pac_records_offset++;
     
     for (i = 0; i < pac_records_num; i++){
-        stored_bytes += pacs_store_field(pacs[i].codec_id, 5, pac_records_offset, read_offset, buffer, buffer_size);
+        field_data[0] = pacs[i].codec_id.coding_format;
+        little_endian_store_16(field_data, 1, pacs[i].codec_id.company_id);
+        little_endian_store_16(field_data, 3, pacs[i].codec_id.vendor_specific_codec_id);
+        stored_bytes += pacs_store_field(field_data, 5, pac_records_offset, read_offset, buffer, buffer_size);
         pac_records_offset += 5;
     }
 

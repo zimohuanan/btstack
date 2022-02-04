@@ -44,6 +44,7 @@
 #define PUBLISHED_AUDIO_CAPABILITIES_SERVICE_SERVER_H
 
 #include <stdint.h>
+#include "le_audio.h"
 
 #if defined __cplusplus
 extern "C" {
@@ -93,11 +94,8 @@ typedef struct {
     const uint8_t * value; // max 5 bytes, value_length is fixed, and depends on type
 } pacs_codec_specific_capability_t;
 
-// struct for codec id
-
 typedef struct {
-    // codec_id: 0:Coding Format, 1-2: Company ID, 3-4: Vendor-specific codec_ID 
-    const uint8_t * codec_id; // fixed length 5
+    le_audio_codec_id_t codec_id; 
 
     uint8_t codec_specific_capabilities_num;
     const   pacs_codec_specific_capability_t * capabilities;

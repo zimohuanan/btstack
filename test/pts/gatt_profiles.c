@@ -129,17 +129,17 @@ static vocs_info_t vocs_info[] = {
 };
 static uint8_t vocs_info_num = 2;
 
-static uint8_t my_codec_id[] = {0x00,0x01,0x02,0x03,0x04};
-const uint8_t  my_value[]    = {0x06,0x07,0x08};
+
+const uint8_t  my_value[] = {0x06, 0x07};
 static pacs_codec_specific_capability_t my_capability = {
         PACS_CODEC_SPECIFIC_CAPABILITY_TYPE_SAMPLING_FREQUENCY,
         my_value
     };
-const uint8_t my_metadata[] = {0x09,0x0A,0x0B,0x0C};
+const uint8_t my_metadata[] = {0x09, 0x0A, 0x0B, 0x0C};
 
-static const pacs_record_t sink_record_0 = {
+static pacs_record_t sink_record_0 = {
     // codec ID
-    my_codec_id,
+    {0x00, 0xAABB, 0xCCDD},
     // num capabilities
     1, 
     // capabilities
@@ -149,6 +149,7 @@ static const pacs_record_t sink_record_0 = {
     // metadata
     my_metadata
 };
+
 
 static pacs_record_t sink_pac_records[1];
 static uint8_t sink_pac_records_num = 0;

@@ -81,6 +81,13 @@ extern "C" {
 #define LE_AUDIO_LOCATION_RIGHT_SURROUND          0x08000000
 #define LE_AUDIO_LOCATION_RFU                     0x10000000
 
+// struct for codec id
+typedef struct {
+    uint8_t  coding_format;
+    uint16_t company_id;
+    uint16_t vendor_specific_codec_id;
+} le_audio_codec_id_t;
+
 #if defined __cplusplus
 }
 #endif
