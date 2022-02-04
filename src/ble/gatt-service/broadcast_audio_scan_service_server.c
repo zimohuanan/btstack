@@ -85,7 +85,8 @@ static uint16_t broadcast_audio_scan_service_read_callback(hci_con_handle_t con_
 static int broadcast_audio_scan_service_write_callback(hci_con_handle_t con_handle, uint16_t attribute_handle, uint16_t transaction_mode, uint16_t offset, uint8_t *buffer, uint16_t buffer_size){
     UNUSED(transaction_mode);
     UNUSED(offset);
-
+    UNUSED(buffer_size);
+    
     if (attribute_handle == bass_audio_scan_control_point_handle){
         // TODO
     }
