@@ -96,12 +96,11 @@ typedef struct {
 
 typedef struct {
     // codec_id: 0:Coding Format, 1-2: Company ID, 3-4: Vendor-specific codec_ID 
-    const uint8_t * codec_id;
-    
-    uint8_t codec_specific_capabilities_length;
-    const   pacs_codec_specific_capability_t * capabilities;
+    const uint8_t * codec_id; // fixed length 5
+
     uint8_t codec_specific_capabilities_num;
-    
+    const   pacs_codec_specific_capability_t * capabilities;
+
     uint8_t metadata_length;
     const uint8_t * metadata;
 } pacs_record_t;

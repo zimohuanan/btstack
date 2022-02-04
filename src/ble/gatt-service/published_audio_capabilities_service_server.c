@@ -47,6 +47,23 @@
 
 #include "ble/gatt-service/published_audio_capabilities_service_server.h"
 
+typedef enum {
+    PAC_RECORD_FIELD_RECORDS_NUM = 0,
+    PAC_RECORD_FIELD_CODEC_ID,
+    PAC_RECORD_FIELD_CODEC_SPECIFIC_CAPABILITIES_LENGTH,
+    PAC_RECORD_FIELD_CODEC_SPECIFIC_CAPABILITIES,
+    PAC_RECORD_FIELD_METADATA_LENGTH,
+    PAC_RECORD_FIELD_METADATA,
+    PAC_RECORD_FIELD_NUM_FIELDS
+} pac_record_field_t;
+
+typedef enum {
+    PAC_RECORD_CAPABILITY_FIELD_LENGTH = 0,
+    PAC_RECORD_CAPABILITY_FIELD_TYPE,
+    PAC_RECORD_CAPABILITY_FIELD_VALUE,
+    PAC_RECORD_CAPABILITY_FIELD_NUM_FIELDS
+} pac_record_capability_field_t;
+
 static att_service_handler_t    published_audio_capabilities_service;
 static hci_con_handle_t         pacs_con_handle;
 static btstack_packet_handler_t pacs_event_callback;
@@ -77,8 +94,9 @@ static uint16_t  pacs_available_audio_contexts_handle;
 // characteristic: SUPPORTED_AUDIO_CONTEXTS      READ  | NOTIFY  |  
 static uint16_t  pacs_supported_audio_contexts_handle;
 static uint16_t  pacs_supported_audio_contexts_client_configuration_handle;
-static uint16_t  pacs_supported_audio_contexts_client_configuration;     
+static uint16_t  pacs_supported_audio_contexts_client_configuration;
 
+static uint8_t codec_specific_capabilities_num = 0;
 
 static const pacs_record_t * pacs_sink_pac_records;
 static uint8_t pacs_sink_pac_records_num;
@@ -99,20 +117,130 @@ static void pacs_set_con_handle(hci_con_handle_t con_handle, uint16_t configurat
     pacs_con_handle = (configuration == 0) ? HCI_CON_HANDLE_INVALID : con_handle;
 }
 
+static uint8_t pack_codec_capability(pacs_codec_specific_capability_t capability, uint8_t * value){
+    uint8_t pos = 0;
+    value[pos++] = capability.value_length + 1; // 1 == sizeof(type)
+    value[pos++] = (uint8_t)capability.type;
+    memcpy(&value[pos], capability.value, capability.value_length);
+    pos += capability.value_length;
+    return pos;
+}
+
+static uint16_t pacs_store_field(
+    const uint8_t * field_data, uint16_t field_len, 
+    // position of field in complete data block
+    uint16_t pac_records_offset, 
+    uint16_t read_offset,
+    uint8_t * buffer, uint16_t buffer_size){
+
+    // only calc total size
+    if (buffer == NULL) {
+        return field_len;
+    }
+
+    uint16_t after_buffer = read_offset + buffer_size ;
+    // bail before buffer
+    if ((pac_records_offset + field_len) < read_offset){
+        return 0;
+    }
+    // bail after buffer
+    if (pac_records_offset >= after_buffer){
+        return 0;
+    }
+    // calc overlap
+    uint16_t bytes_to_copy = field_len;
+    
+    uint16_t skip_at_start = 0;
+    if (pac_records_offset < read_offset){
+        skip_at_start = read_offset - pac_records_offset;
+        bytes_to_copy -= skip_at_start;
+    }
+
+    uint16_t skip_at_end = 0;
+    if ((pac_records_offset + field_len) > after_buffer){
+        skip_at_end = (pac_records_offset + field_len) - after_buffer;
+        bytes_to_copy -= skip_at_end;
+    }
+    
+    btstack_assert((skip_at_end + skip_at_start) <= field_len);
+    btstack_assert(bytes_to_copy <= field_len);
+
+    memcpy(&buffer[(pac_records_offset + skip_at_start) - read_offset], &field_data[skip_at_start], bytes_to_copy);
+    return bytes_to_copy;
+}
+
+static uint8_t pacs_get_codec_specific_capabilities_length(pacs_record_t record){
+    uint8_t i;
+    uint8_t length = 0;
+    for (i = 0; i < record.codec_specific_capabilities_num; i++){
+        length += record.capabilities[i].value_length + 2; // type(1) + length(1)
+    }
+    return length;
+}
+
+// offset gives position into fully serialized pacs record
+static uint16_t pacs_store_records(const pacs_record_t * pacs, uint8_t pac_records_num, uint16_t read_offset, uint8_t * buffer, uint16_t buffer_size){
+    uint8_t  field_data[7];
+    uint16_t pac_records_offset = 0;
+    uint8_t  i;
+    uint16_t stored_bytes = 0;
+    memset(buffer, 0, buffer_size);
+
+    field_data[0] = pac_records_num;
+    stored_bytes += pacs_store_field(field_data, 1, pac_records_offset, read_offset, buffer, buffer_size);
+    pac_records_offset++;
+    
+    for (i = 0; i < pac_records_num; i++){
+        stored_bytes += pacs_store_field(pacs[i].codec_id, 5, pac_records_offset, read_offset, buffer, buffer_size);
+        pac_records_offset += 5;
+    }
+
+    for (i = 0; i < pac_records_num; i++){
+        field_data[0] = pacs_get_codec_specific_capabilities_length(pacs[i]);
+        stored_bytes += pacs_store_field(field_data, 1, pac_records_offset, read_offset, buffer, buffer_size);
+        pac_records_offset++;
+    }
+
+    for (i = 0; i < pac_records_num; i++){
+        if (pacs_get_codec_specific_capabilities_length(pacs[i]) == 0){
+            continue;
+        }
+        uint8_t j;
+        for (j = 0; j < pacs[i].codec_specific_capabilities_num; j++){
+            uint16_t field_len = pack_codec_capability(pacs[i].capabilities[j], field_data);
+            stored_bytes += pacs_store_field(field_data, field_len, pac_records_offset, read_offset, buffer, buffer_size);
+            pac_records_offset += field_len;
+        }
+    }
+ 
+    for (i = 0; i < pac_records_num; i++){
+        field_data[0] = pacs[i].metadata_length;
+        stored_bytes += pacs_store_field(field_data, 1, pac_records_offset, read_offset, buffer, buffer_size);
+        pac_records_offset++;
+    }
+
+    for (i = 0; i < pac_records_num; i++){
+        stored_bytes += pacs_store_field(pacs[i].metadata, pacs[i].metadata_length, pac_records_offset, read_offset, buffer, buffer_size);
+        pac_records_offset += pacs[i].metadata_length;
+    }
+    return stored_bytes;
+}
+
+
 static uint16_t published_audio_capabilities_service_read_callback(hci_con_handle_t con_handle, uint16_t attribute_handle, uint16_t offset, uint8_t * buffer, uint16_t buffer_size){
     UNUSED(con_handle);
     if (attribute_handle == pacs_sinc_pac_handle){
-        // TODO
+        return  pacs_store_records(pacs_sink_pac_records, pacs_sink_pac_records_num, offset, buffer, buffer_size);
+    }
+
+    if (attribute_handle == pacs_source_pac_handle){
+        return  pacs_store_records(pacs_source_pac_records, pacs_source_pac_records_num, offset, buffer, buffer_size);
     }
 
     if (attribute_handle == pacs_sink_audio_locations_handle){
         // TODO
     }
     
-    if (attribute_handle == pacs_source_pac_handle){
-        // TODO
-    }
-
     if (attribute_handle == pacs_source_audio_locations_handle){
         // TODO
     }
