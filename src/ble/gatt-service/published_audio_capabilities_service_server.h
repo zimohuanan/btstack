@@ -90,9 +90,10 @@ typedef enum {
 
 typedef struct {
     pacs_codec_specific_capability_type_t type;
-    uint8_t value_length; 
-    const uint8_t * value; // max 5 bytes
+    const uint8_t * value; // max 5 bytes, value_length is fixed, and depends on type
 } pacs_codec_specific_capability_t;
+
+// struct for codec id
 
 typedef struct {
     // codec_id: 0:Coding Format, 1-2: Company ID, 3-4: Vendor-specific codec_ID 
@@ -104,7 +105,6 @@ typedef struct {
     uint8_t metadata_length;
     const uint8_t * metadata;
 } pacs_record_t;
-
 
 /**
  * @brief Init Published Audio Capabilities Service Server with ATT DB

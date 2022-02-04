@@ -129,23 +129,30 @@ static vocs_info_t vocs_info[] = {
 };
 static uint8_t vocs_info_num = 2;
 
-static uint8_t my_codec_id[] = {0,1,2,3,4};
-const uint8_t  my_value[] = {1,2,3};
+static uint8_t my_codec_id[] = {0x00,0x01,0x02,0x03,0x04};
+const uint8_t  my_value[]    = {0x06,0x07,0x08};
 static pacs_codec_specific_capability_t my_capability = {
-       PACS_CODEC_SPECIFIC_CAPABILITY_TYPE_SAMPLING_FREQUENCY,
-       3,
-       my_value
+        PACS_CODEC_SPECIFIC_CAPABILITY_TYPE_SAMPLING_FREQUENCY,
+        my_value
     };
-const uint8_t my_metadata[] = {1,2,3,4};
+const uint8_t my_metadata[] = {0x09,0x0A,0x0B,0x0C};
 
-static pacs_record_t record = {
+static const pacs_record_t sink_record_0 = {
+    // codec ID
     my_codec_id,
-    10,
+    // num capabilities
+    1, 
+    // capabilities
     &my_capability,
-    1,
-    4,
+    // metadata length
+    4, 
+    // metadata
     my_metadata
 };
+
+static pacs_record_t sink_pac_records[1];
+static uint8_t sink_pac_records_num = 0;
+
 
 #ifdef ENABLE_GATT_OVER_CLASSIC
 #include "classic/gatt_sdp.h"
@@ -511,7 +518,10 @@ int btstack_main(void)
     
     broadcast_audio_scan_service_server_init();
     audio_stream_control_service_server_init();
-    published_audio_capabilities_service_server_init(NULL, 0, NULL, 0);
+
+    sink_pac_records[0] = sink_record_0;
+    sink_pac_records_num = 1;
+    published_audio_capabilities_service_server_init(sink_pac_records, sink_pac_records_num, NULL, 0);
 
 
     // setup advertisements
