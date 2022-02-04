@@ -130,20 +130,6 @@ void published_audio_capabilities_service_server_init(
 void published_audio_capabilities_service_server_register_packet_handler(btstack_packet_handler_t callback);
 
 /**
- * @brief Set Sink PAC Records. The last subscribed client will be notified on change (this will be extended to all subscribed clients).
- * @param pac_records
- * @param pac_records_num
- */
-uint8_t published_audio_capabilities_service_server_set_sink_pac_records(const pacs_record_t * pac_records, uint8_t pac_records_num);
-
-/**
- * @brief Set Source PAC Records. The last subscribed client will be notified on change (this will be extended to all subscribed clients).
- * @param pac_records
- * @param pac_records_num
- */
-uint8_t published_audio_capabilities_service_server_set_source_pac_records(const pacs_record_t * pac_records, uint8_t pac_records_num);
-
-/**
  * @brief Set sink audio locations bitmap. The last subscribed client will be notified on change (this will be extended to all subscribed clients).
  * @param audio_locations_bitmap
  */
