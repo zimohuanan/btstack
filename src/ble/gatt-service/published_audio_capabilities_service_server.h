@@ -110,24 +110,62 @@ typedef struct {
  * @param sink_pac_records_num
  * @param source_pac_records
  * @param source_pac_records_num
- * @param sink_audio_location_bitmap
- * @param source_audio_location_bitmap
+ * @param sink_audio_locations_bitmap
+ * @param source_audio_locations_bitmap
  * @param available_audio_contexts
  * @param supported_audio_contexts
  */
 void published_audio_capabilities_service_server_init(
         const pacs_record_t * sink_pac_records, uint8_t sink_pac_records_num,
         const pacs_record_t * source_pac_records, uint8_t source_pac_records_num,
-        const uint32_t sink_audio_location_bitmap,
-        const uint32_t source_audio_location_bitmap,
-        const uint16_t available_audio_contexts,
-        const uint16_t supported_audio_contexts);
+        uint32_t sink_audio_locations_bitmap,
+        uint32_t source_audio_locations_bitmap,
+        uint16_t available_audio_contexts_bitmap,
+        uint16_t supported_audio_contexts_bitmap);
 
 /**
  * @brief Register callback.
  * @param callback
  */
 void published_audio_capabilities_service_server_register_packet_handler(btstack_packet_handler_t callback);
+
+/**
+ * @brief Set Sink PAC Records. The last subscribed client will be notified on change (this will be extended to all subscribed clients).
+ * @param pac_records
+ * @param pac_records_num
+ */
+uint8_t published_audio_capabilities_service_server_set_sink_pac_records(const pacs_record_t * pac_records, uint8_t pac_records_num);
+
+/**
+ * @brief Set Source PAC Records. The last subscribed client will be notified on change (this will be extended to all subscribed clients).
+ * @param pac_records
+ * @param pac_records_num
+ */
+uint8_t published_audio_capabilities_service_server_set_source_pac_records(const pacs_record_t * pac_records, uint8_t pac_records_num);
+
+/**
+ * @brief Set sink audio locations bitmap. The last subscribed client will be notified on change (this will be extended to all subscribed clients).
+ * @param audio_locations_bitmap
+ */
+uint8_t published_audio_capabilities_service_server_set_sink_audio_locations(uint32_t audio_locations_bitmap);
+
+/**
+ * @brief Set source audio locations bitmap. The last subscribed client will be notified on change (this will be extended to all subscribed clients).
+ * @param audio_locations_bitmap
+ */
+uint8_t published_audio_capabilities_service_server_set_source_audio_locations(uint32_t audio_locations_bitmap);
+
+/**
+ * @brief Set available audio context bitmap. The last subscribed client will be notified on change (this will be extended to all subscribed clients).
+ * @param available_audio_contexts_bitmap
+ */
+uint8_t published_audio_capabilities_service_server_set_available_audio_contexts(uint16_t available_audio_contexts_bitmap);
+
+/**
+ * @brief Set supported audio context bitmap. The last subscribed client will be notified on change (this will be extended to all subscribed clients).
+ * @param supported_audio_contexts_bitmap
+ */
+uint8_t published_audio_capabilities_service_server_set_supported_audio_contexts(uint16_t supported_audio_contexts_bitmap);
 
 /* API_END */
 

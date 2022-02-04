@@ -47,6 +47,13 @@
 
 #include "ble/gatt-service/published_audio_capabilities_service_server.h"
 
+#define PACS_TASK_SEND_SINK_PAC_RECORDS                        0x01
+#define PACS_TASK_SEND_SOURCE_PAC_RECORDS                      0x02
+#define PACS_TASK_SEND_SINK_AUDIO_LOCATIONS                    0x04
+#define PACS_TASK_SEND_SOURCE_AUDIO_LOCATIONS                  0x08
+#define PACS_TASK_SEND_AVAILABLE_AUDIO_CONTEXTS                0x10
+#define PACS_TASK_SEND_SUPPORTED_AUDIO_CONTEXTS                0x20
+
 typedef enum {
     PAC_RECORD_FIELD_RECORDS_NUM = 0,
     PAC_RECORD_FIELD_CODEC_ID,
@@ -69,6 +76,8 @@ static const uint8_t pacs_codec_specific_capability_lengths[] = {0, 2, 2, 5, 3, 
 static att_service_handler_t    published_audio_capabilities_service;
 static hci_con_handle_t         pacs_con_handle;
 static btstack_packet_handler_t pacs_event_callback;
+static btstack_context_callback_registration_t  pacs_scheduled_tasks_callback;
+static uint8_t pacs_scheduled_tasks;
 
 // characteristic: SINK_PAC                      READ  | NOTIFY  |  
 static uint16_t  pacs_sinc_pac_handle;
@@ -135,6 +144,7 @@ static uint8_t pacs_total_codec_specific_capabilities_length(pacs_record_t recor
     }
     return length;
 }
+
 static uint8_t pack_codec_capability(pacs_codec_specific_capability_t capability, uint8_t * value){
     uint8_t pos = 0;
     uint8_t value_length = pacs_codec_specific_capability_value_length(capability);
@@ -240,6 +250,63 @@ static uint16_t pacs_store_records(const pacs_record_t * pacs, uint8_t pac_recor
 }
 
 
+static void published_audio_capabilities_service_server_can_send_now(void * context){
+    if ((pacs_scheduled_tasks & PACS_TASK_SEND_SINK_PAC_RECORDS) != 0){
+        pacs_scheduled_tasks &= ~PACS_TASK_SEND_SINK_PAC_RECORDS;
+        uint8_t value[1000];
+        uint16_t stored_bytes = pacs_store_records(pacs_sink_pac_records, pacs_sink_pac_records_num, 0, value, sizeof(value));
+        att_server_notify(pacs_con_handle, pacs_sinc_pac_handle, &value[0], sizeof(value));
+
+    } else if ((pacs_scheduled_tasks & PACS_TASK_SEND_SOURCE_PAC_RECORDS) != 0) {
+        pacs_scheduled_tasks &= ~PACS_TASK_SEND_SOURCE_PAC_RECORDS;
+        uint8_t value[1000];
+        uint16_t stored_bytes = pacs_store_records(pacs_source_pac_records, pacs_source_pac_records_num, 0, value, sizeof(value));
+        att_server_notify(pacs_con_handle, pacs_source_pac_handle, &value[0], sizeof(value));
+
+    } else if ((pacs_scheduled_tasks & PACS_TASK_SEND_SINK_AUDIO_LOCATIONS) != 0) {
+        pacs_scheduled_tasks &= ~PACS_TASK_SEND_SINK_AUDIO_LOCATIONS;
+        uint8_t value[4];
+        little_endian_store_32(value, 0, pacs_sink_audio_locations);
+        att_server_notify(pacs_con_handle, pacs_sink_audio_locations_handle, &value[0], sizeof(value));
+
+    } else if ((pacs_scheduled_tasks & PACS_TASK_SEND_SOURCE_AUDIO_LOCATIONS) != 0) {
+        pacs_scheduled_tasks &= ~PACS_TASK_SEND_SOURCE_AUDIO_LOCATIONS;
+        uint8_t value[4];
+        little_endian_store_32(value, 0, pacs_sink_audio_locations);
+        att_server_notify(pacs_con_handle, pacs_sink_audio_locations_handle, &value[0], sizeof(value));
+
+    } else if ((pacs_scheduled_tasks & PACS_TASK_SEND_AVAILABLE_AUDIO_CONTEXTS) != 0) {
+        pacs_scheduled_tasks &= ~PACS_TASK_SEND_AVAILABLE_AUDIO_CONTEXTS;
+        uint8_t value[2];
+        little_endian_store_16(value, 0, pacs_available_audio_contexts);
+        att_server_notify(pacs_con_handle, pacs_available_audio_contexts_handle, &value[0], sizeof(value));
+
+    } else if ((pacs_scheduled_tasks & PACS_TASK_SEND_SUPPORTED_AUDIO_CONTEXTS) != 0) {
+        pacs_scheduled_tasks &= ~PACS_TASK_SEND_SUPPORTED_AUDIO_CONTEXTS;
+        uint8_t value[2];
+        little_endian_store_16(value, 0, pacs_supported_audio_contexts);
+        att_server_notify(pacs_con_handle, pacs_supported_audio_contexts_handle, &value[0], sizeof(value));
+    }
+
+    if (pacs_scheduled_tasks != 0){
+        att_server_register_can_send_now_callback(&pacs_scheduled_tasks_callback, pacs_con_handle);
+    }
+}
+
+static void published_audio_capabilities_service_server_set_callback(uint8_t task){
+    if (pacs_con_handle == HCI_CON_HANDLE_INVALID){
+        pacs_scheduled_tasks &= ~task;
+        return;
+    }
+
+    uint8_t scheduled_tasks = pacs_scheduled_tasks;
+    pacs_scheduled_tasks |= task;
+    if (scheduled_tasks == 0){
+        pacs_scheduled_tasks_callback.callback = &published_audio_capabilities_service_server_can_send_now;
+        att_server_register_can_send_now_callback(&pacs_scheduled_tasks_callback, pacs_con_handle);
+    }
+}
+
 static uint16_t published_audio_capabilities_service_read_callback(hci_con_handle_t con_handle, uint16_t attribute_handle, uint16_t offset, uint8_t * buffer, uint16_t buffer_size){
     UNUSED(con_handle);
     if (attribute_handle == pacs_sinc_pac_handle){
@@ -299,15 +366,21 @@ static uint16_t published_audio_capabilities_service_read_callback(hci_con_handl
 static int published_audio_capabilities_service_write_callback(hci_con_handle_t con_handle, uint16_t attribute_handle, uint16_t transaction_mode, uint16_t offset, uint8_t *buffer, uint16_t buffer_size){
     UNUSED(transaction_mode);
     UNUSED(offset);
-    UNUSED(buffer);
-    UNUSED(buffer_size);
 
     if (attribute_handle == pacs_sink_audio_locations_handle){
-        // TODO
+        if (buffer_size != 4){
+            return 0;
+        }
+        uint32_t locations = little_endian_read_32(buffer, 0);
+        published_audio_capabilities_service_server_set_sink_audio_locations(locations);
     }
 
     else if (attribute_handle == pacs_source_audio_locations_handle){
-        // TODO
+        if (buffer_size != 4){
+            return 0;
+        }
+        uint32_t locations = little_endian_read_32(buffer, 0);
+        published_audio_capabilities_service_server_set_source_audio_locations(locations);
     }
 
     else if (attribute_handle == pacs_sinc_pac_client_configuration_handle){
@@ -363,10 +436,10 @@ static void published_audio_capabilities_service_packet_handler(uint8_t packet_t
 void published_audio_capabilities_service_server_init(
         const pacs_record_t * sink_pac_records, uint8_t sink_pac_records_num,
         const pacs_record_t * source_pac_records, uint8_t source_pac_records_num,
-        const uint32_t sink_audio_location_bitmap,
-        const uint32_t source_audio_location_bitmap,
-        const uint16_t available_audio_contexts,
-        const uint16_t supported_audio_contexts
+        uint32_t sink_audio_locations_bitmap,
+        uint32_t source_audio_locations_bitmap,
+        uint16_t available_audio_contexts_bitmap,
+        uint16_t supported_audio_contexts_bitmap
 ){
 
     // get service handle range
@@ -378,17 +451,12 @@ void published_audio_capabilities_service_server_init(
 
     published_audio_capabilities_service_server_reset_values();
 
-    pacs_sink_pac_records = sink_pac_records;
-    pacs_sink_pac_records_num = sink_pac_records_num;
-
-    pacs_source_pac_records = source_pac_records;
-    pacs_source_pac_records_num = source_pac_records_num;
-
-    pacs_sink_audio_locations = sink_audio_location_bitmap;
-    pacs_source_audio_locations = source_audio_location_bitmap;
-
-    pacs_available_audio_contexts = available_audio_contexts;
-    pacs_supported_audio_contexts = supported_audio_contexts;
+    published_audio_capabilities_service_server_set_sink_pac_records(sink_pac_records, sink_pac_records_num);
+    published_audio_capabilities_service_server_set_source_pac_records(sink_pac_records, sink_pac_records_num);
+    published_audio_capabilities_service_server_set_sink_audio_locations(sink_audio_locations_bitmap);
+    published_audio_capabilities_service_server_set_source_audio_locations(source_audio_locations_bitmap);
+    published_audio_capabilities_service_server_set_available_audio_contexts(available_audio_contexts_bitmap);
+    published_audio_capabilities_service_server_set_supported_audio_contexts(supported_audio_contexts_bitmap);
 
     pacs_sinc_pac_handle = gatt_server_get_value_handle_for_characteristic_with_uuid16(start_handle, end_handle, ORG_BLUETOOTH_CHARACTERISTIC_SINK_PAC);
     pacs_sinc_pac_client_configuration_handle = gatt_server_get_client_configuration_handle_for_characteristic_with_uuid16(start_handle, end_handle, ORG_BLUETOOTH_CHARACTERISTIC_SINK_PAC);
@@ -423,3 +491,46 @@ void published_audio_capabilities_service_server_register_packet_handler(btstack
     pacs_event_callback = callback;
 }
 
+uint8_t published_audio_capabilities_service_server_set_sink_pac_records(const pacs_record_t * pac_records, uint8_t pac_records_num){
+    if (pac_records == NULL){
+        btstack_assert(pac_records_num == 0);
+    }
+    pacs_sink_pac_records = pac_records;
+    pacs_sink_pac_records_num = pac_records_num;
+    published_audio_capabilities_service_server_set_callback(PACS_TASK_SEND_SINK_PAC_RECORDS);
+    return ERROR_CODE_SUCCESS;
+}
+
+uint8_t published_audio_capabilities_service_server_set_source_pac_records(const pacs_record_t * pac_records, uint8_t pac_records_num){
+    if (pac_records == NULL){
+        btstack_assert(pac_records_num == 0);
+    }
+    pacs_source_pac_records = pac_records;
+    pacs_source_pac_records_num = pac_records_num;
+    published_audio_capabilities_service_server_set_callback(PACS_TASK_SEND_SOURCE_PAC_RECORDS);
+    return ERROR_CODE_SUCCESS;
+}
+
+uint8_t published_audio_capabilities_service_server_set_sink_audio_locations(uint32_t audio_locations_bitmap){
+    pacs_sink_audio_locations = audio_locations_bitmap;
+    published_audio_capabilities_service_server_set_callback(PACS_TASK_SEND_SINK_AUDIO_LOCATIONS);
+    return ERROR_CODE_SUCCESS;
+}
+
+uint8_t published_audio_capabilities_service_server_set_source_audio_locations(uint32_t audio_locations_bitmap){
+    pacs_source_audio_locations = audio_locations_bitmap;
+    published_audio_capabilities_service_server_set_callback(PACS_TASK_SEND_SOURCE_AUDIO_LOCATIONS);
+    return ERROR_CODE_SUCCESS;
+}
+
+uint8_t published_audio_capabilities_service_server_set_available_audio_contexts(uint16_t available_audio_contexts_bitmap){
+    pacs_available_audio_contexts = available_audio_contexts_bitmap;
+    published_audio_capabilities_service_server_set_callback(PACS_TASK_SEND_AVAILABLE_AUDIO_CONTEXTS);
+    return ERROR_CODE_SUCCESS;
+}
+
+uint8_t published_audio_capabilities_service_server_set_supported_audio_contexts(uint16_t supported_audio_contexts_bitmap){
+    pacs_supported_audio_contexts = supported_audio_contexts_bitmap;
+    published_audio_capabilities_service_server_set_callback(PACS_TASK_SEND_SUPPORTED_AUDIO_CONTEXTS);
+    return ERROR_CODE_SUCCESS;
+}
