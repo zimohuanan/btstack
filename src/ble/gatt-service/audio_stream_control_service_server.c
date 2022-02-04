@@ -99,6 +99,7 @@ static uint16_t audio_stream_control_service_read_callback(hci_con_handle_t con_
 static int audio_stream_control_service_write_callback(hci_con_handle_t con_handle, uint16_t attribute_handle, uint16_t transaction_mode, uint16_t offset, uint8_t *buffer, uint16_t buffer_size){
     UNUSED(transaction_mode);
     UNUSED(offset);
+    UNUSED(buffer_size);
 
     if (attribute_handle == ascs_ase_control_point_handle){
         // TODO
