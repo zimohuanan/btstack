@@ -110,8 +110,18 @@ typedef struct {
  * @param sink_pac_records_num
  * @param source_pac_records
  * @param source_pac_records_num
+ * @param sink_audio_location_bitmap
+ * @param source_audio_location_bitmap
+ * @param available_audio_contexts
+ * @param supported_audio_contexts
  */
-void published_audio_capabilities_service_server_init(const pacs_record_t * sink_pac_records, uint8_t sink_pac_records_num, const pacs_record_t * source_pac_records, uint8_t source_pac_records_num);
+void published_audio_capabilities_service_server_init(
+        const pacs_record_t * sink_pac_records, uint8_t sink_pac_records_num,
+        const pacs_record_t * source_pac_records, uint8_t source_pac_records_num,
+        const uint32_t sink_audio_location_bitmap,
+        const uint32_t source_audio_location_bitmap,
+        const uint16_t available_audio_contexts,
+        const uint16_t supported_audio_contexts);
 
 /**
  * @brief Register callback.

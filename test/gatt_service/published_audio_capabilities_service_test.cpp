@@ -62,6 +62,8 @@ TEST_GROUP(PUBLISHED_AUDIO_CAPABILITIES_SERVICE_SERVER){
     uint16_t pacs_sinc_pac_handle_client_configuration;
     pacs_record_t sink_pac_records[1];
     uint8_t sink_pac_records_num;
+    uint32_t sink_audio_location_bitmap;
+    uint32_t source_audio_location_bitmap;
 
     void setup(void){
         // setup database
@@ -71,7 +73,15 @@ TEST_GROUP(PUBLISHED_AUDIO_CAPABILITIES_SERVICE_SERVER){
         sink_pac_records_num = 1;
         sink_pac_records[0] = sink_record_0;
         // setup battery service
-        published_audio_capabilities_service_server_init(sink_pac_records, sink_pac_records_num, NULL, 0);
+        sink_audio_location_bitmap = LE_AUDIO_LOCATION_FRONT_RIGHT;
+        source_audio_location_bitmap = LE_AUDIO_LOCATION_NOT_ALLOWED;
+
+        published_audio_capabilities_service_server_init(
+                sink_pac_records, sink_pac_records_num,
+                NULL, 0,
+                sink_audio_location_bitmap,
+                source_audio_location_bitmap,
+                0,0);
 
         service = mock_att_server_get_service();
         con_handle = 0x00;
