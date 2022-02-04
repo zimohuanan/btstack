@@ -24,24 +24,34 @@
 #include "published_audio_capabilities_service_test.h"
 #include "mock_att_server.h"
 
-static uint8_t my_codec_id[] = {0,1,2,3,4};
-const uint8_t  my_value[] = {1,2,3};
+static uint8_t my_codec_id[] = {0x00,0x01,0x02,0x03,0x04};
+const uint8_t  my_value[] = {0x06,0x07,0x08};
 static pacs_codec_specific_capability_t my_capability = {
-       PACS_CODEC_SPECIFIC_CAPABILITY_TYPE_SAMPLING_FREQUENCY,
+        PACS_CODEC_SPECIFIC_CAPABILITY_TYPE_SAMPLING_FREQUENCY,
        3,
        my_value
     };
-const uint8_t my_metadata[] = {1,2,3,4};
+const uint8_t my_metadata[] = {0x09,0x0A,0x0B,0x0C};
 
 static pacs_record_t sink_record_0 = {
     my_codec_id,
-    10,
-    &my_capability,
-    1,
-    4,
-    my_metadata
+    1, &my_capability,
+    4, my_metadata
 };
-
+uint8_t expected_response_sink_pac_record[] = {
+        // num_records
+        0x01,
+        // codec id
+        0x00, 0x01, 0x02, 0x03, 0x04,
+        // cap. length
+        0x05,
+        // type, len, value
+        0x04, 0x01, 0x06, 0x07, 0x08,
+        // metadata len
+        0x04,
+        // metadata
+        0x09, 0x0A, 0x0B, 0x0C
+};
 
 TEST_GROUP(PUBLISHED_AUDIO_CAPABILITIES_SERVICE_SERVER){ 
     att_service_handler_t * service; 
@@ -76,8 +86,7 @@ TEST(PUBLISHED_AUDIO_CAPABILITIES_SERVICE_SERVER, lookup_attribute_handles){
     CHECK(pacs_sinc_pac_handle_client_configuration != 0);
 }
 
-
-TEST(PUBLISHED_AUDIO_CAPABILITIES_SERVICE_SERVER, read_battery_value){
+TEST(PUBLISHED_AUDIO_CAPABILITIES_SERVICE_SERVER, read_pac_handle_client_configuration) {
     uint8_t response[2];
     uint16_t response_len;
 
@@ -87,11 +96,27 @@ TEST(PUBLISHED_AUDIO_CAPABILITIES_SERVICE_SERVER, read_battery_value){
 
     response_len = mock_att_service_read_callback(con_handle, pacs_sinc_pac_handle_client_configuration, 0, response, sizeof(response));
     CHECK_EQUAL(2, response_len);
-
-    // response_len = mock_att_service_read_callback(con_handle, pacs_sinc_pac_handle_value, 0, response, sizeof(response));
-    // CHECK_EQUAL(1, response_len);
 }
 
+TEST(PUBLISHED_AUDIO_CAPABILITIES_SERVICE_SERVER, read_whole_sink_pac_record) {
+    uint8_t  response[20];
+    uint16_t response_len = mock_att_service_read_callback(con_handle, pacs_sinc_pac_handle_value, 0, response, sizeof(response));
+    CHECK_EQUAL(17, response_len);
+    MEMCMP_EQUAL(expected_response_sink_pac_record, response, sizeof (expected_response_sink_pac_record));
+}
+
+TEST(PUBLISHED_AUDIO_CAPABILITIES_SERVICE_SERVER, read_partial_sink_pac_record) {
+    uint8_t response[10];
+    uint8_t max_response_size = sizeof(response);
+    // slide and read max 10 bytes
+    uint8_t offset;
+    for (offset = 0; offset < sizeof(expected_response_sink_pac_record); offset++){
+        uint8_t expected_size = btstack_min(sizeof(expected_response_sink_pac_record) - offset, max_response_size);
+        uint16_t response_len = mock_att_service_read_callback(con_handle, pacs_sinc_pac_handle_value, offset, response, max_response_size);
+        CHECK_EQUAL(expected_size, response_len);
+        MEMCMP_EQUAL(expected_response_sink_pac_record + offset, response, expected_size);
+    }
+}
 
 int main (int argc, const char * argv[]){
     return CommandLineTestRunner::RunAllTests(argc, argv);
