@@ -103,15 +103,18 @@ static uint16_t  pacs_supported_audio_contexts_client_configuration;
 
 // Data
 static const pacs_record_t * pacs_sink_pac_records;
-static uint8_t pacs_sink_pac_records_num;
+static uint8_t  pacs_sink_pac_records_num;
 static uint32_t pacs_sink_audio_locations;
 
 static const  pacs_record_t * pacs_source_pac_records;
-static uint8_t pacs_source_pac_records_num;
+static uint8_t  pacs_source_pac_records_num;
 static uint32_t pacs_source_audio_locations;
 
-static uint16_t pacs_available_audio_contexts;
-static uint16_t pacs_supported_audio_contexts;
+static uint16_t pacs_sink_available_audio_contexts_bitmap;
+static uint16_t pacs_sink_supported_audio_contexts_bitmap;
+
+static uint16_t pacs_source_available_audio_contexts_bitmap;
+static uint16_t pacs_source_supported_audio_contexts_bitmap;
 
 static void published_audio_capabilities_service_server_reset_values(void){
     pacs_con_handle = HCI_CON_HANDLE_INVALID;
@@ -259,14 +262,16 @@ static void published_audio_capabilities_service_server_can_send_now(void * cont
 
     } else if ((pacs_scheduled_tasks & PACS_TASK_SEND_AVAILABLE_AUDIO_CONTEXTS) != 0) {
         pacs_scheduled_tasks &= ~PACS_TASK_SEND_AVAILABLE_AUDIO_CONTEXTS;
-        uint8_t value[2];
-        little_endian_store_16(value, 0, pacs_available_audio_contexts);
+        uint8_t value[4];
+        little_endian_store_16(value, 0, pacs_sink_available_audio_contexts_bitmap);
+        little_endian_store_16(value, 2, pacs_source_available_audio_contexts_bitmap);
         att_server_notify(pacs_con_handle, pacs_available_audio_contexts_handle, &value[0], sizeof(value));
 
     } else if ((pacs_scheduled_tasks & PACS_TASK_SEND_SUPPORTED_AUDIO_CONTEXTS) != 0) {
         pacs_scheduled_tasks &= ~PACS_TASK_SEND_SUPPORTED_AUDIO_CONTEXTS;
-        uint8_t value[2];
-        little_endian_store_16(value, 0, pacs_supported_audio_contexts);
+        uint8_t value[4];
+        little_endian_store_16(value, 0, pacs_sink_supported_audio_contexts_bitmap);
+        little_endian_store_16(value, 2, pacs_source_supported_audio_contexts_bitmap);
         att_server_notify(pacs_con_handle, pacs_supported_audio_contexts_handle, &value[0], sizeof(value));
     }
 
@@ -312,14 +317,16 @@ static uint16_t published_audio_capabilities_service_read_callback(hci_con_handl
     }
     
     if (attribute_handle == pacs_supported_audio_contexts_handle){
-        uint8_t value[2];
-        little_endian_store_16(value, 0, pacs_supported_audio_contexts);
+        uint8_t value[4];
+        little_endian_store_16(value, 0, pacs_sink_supported_audio_contexts_bitmap);
+        little_endian_store_16(value, 2, pacs_source_supported_audio_contexts_bitmap);
         return att_read_callback_handle_blob(value, sizeof(value), offset, buffer, buffer_size);
     }
 
     if (attribute_handle == pacs_available_audio_contexts_handle){
-        uint8_t value[2];
-        little_endian_store_16(value, 0, pacs_available_audio_contexts);
+        uint8_t value[4];
+        little_endian_store_16(value, 0, pacs_sink_available_audio_contexts_bitmap);
+        little_endian_store_16(value, 2, pacs_source_available_audio_contexts_bitmap);
         return att_read_callback_handle_blob(value, sizeof(value), offset, buffer, buffer_size);
     }
 
@@ -448,8 +455,10 @@ void published_audio_capabilities_service_server_init(
         const pacs_record_t * source_pac_records, uint8_t source_pac_records_num,
         uint32_t sink_audio_locations_bitmap,
         uint32_t source_audio_locations_bitmap,
-        uint16_t available_audio_contexts_bitmap,
-        uint16_t supported_audio_contexts_bitmap
+        uint16_t available_sink_audio_contexts_bitmap,
+        uint16_t available_source_audio_contexts_bitmap,
+        uint16_t supported_sink_audio_contexts_bitmap,
+        uint16_t supported_source_audio_contexts_bitmap
 ){
 
     // get service handle range
@@ -461,7 +470,6 @@ void published_audio_capabilities_service_server_init(
 
     published_audio_capabilities_service_server_reset_values();
 
-    btstack_assert( (sink_pac_records != NULL && sink_pac_records_num != 0) || (source_pac_records != NULL && source_pac_records_num != 0) );
 
     if (sink_pac_records != NULL){
         btstack_assert(pacs_pac_records_capability_types_valid(sink_pac_records, sink_pac_records_num));
@@ -478,8 +486,8 @@ void published_audio_capabilities_service_server_init(
 
     published_audio_capabilities_service_server_set_sink_audio_locations(sink_audio_locations_bitmap);
     published_audio_capabilities_service_server_set_source_audio_locations(source_audio_locations_bitmap);
-    published_audio_capabilities_service_server_set_available_audio_contexts(available_audio_contexts_bitmap);
-    published_audio_capabilities_service_server_set_supported_audio_contexts(supported_audio_contexts_bitmap);
+    published_audio_capabilities_service_server_set_available_audio_contexts(available_sink_audio_contexts_bitmap, available_source_audio_contexts_bitmap);
+    published_audio_capabilities_service_server_set_supported_audio_contexts(supported_sink_audio_contexts_bitmap, supported_source_audio_contexts_bitmap);
 
     pacs_sinc_pac_handle = gatt_server_get_value_handle_for_characteristic_with_uuid16(start_handle, end_handle, ORG_BLUETOOTH_CHARACTERISTIC_SINK_PAC);
 
@@ -525,14 +533,22 @@ uint8_t published_audio_capabilities_service_server_set_source_audio_locations(u
     return ERROR_CODE_SUCCESS;
 }
 
-uint8_t published_audio_capabilities_service_server_set_available_audio_contexts(uint16_t available_audio_contexts_bitmap){
-    pacs_available_audio_contexts = available_audio_contexts_bitmap;
+uint8_t published_audio_capabilities_service_server_set_available_audio_contexts(
+    uint16_t available_sink_audio_contexts_bitmap, 
+    uint16_t available_source_audio_contexts_bitmap){
+
+    pacs_sink_available_audio_contexts_bitmap = available_sink_audio_contexts_bitmap;
+    pacs_source_available_audio_contexts_bitmap = available_source_audio_contexts_bitmap;
     published_audio_capabilities_service_server_set_callback(PACS_TASK_SEND_AVAILABLE_AUDIO_CONTEXTS);
     return ERROR_CODE_SUCCESS;
 }
 
-uint8_t published_audio_capabilities_service_server_set_supported_audio_contexts(uint16_t supported_audio_contexts_bitmap){
-    pacs_supported_audio_contexts = supported_audio_contexts_bitmap;
+uint8_t published_audio_capabilities_service_server_set_supported_audio_contexts(
+    uint16_t supported_sink_audio_contexts_bitmap, 
+    uint16_t supported_source_audio_contexts_bitmap){
+
+    pacs_sink_supported_audio_contexts_bitmap = supported_sink_audio_contexts_bitmap;
+    pacs_source_supported_audio_contexts_bitmap = supported_source_audio_contexts_bitmap;
     published_audio_capabilities_service_server_set_callback(PACS_TASK_SEND_SUPPORTED_AUDIO_CONTEXTS);
     return ERROR_CODE_SUCCESS;
 }

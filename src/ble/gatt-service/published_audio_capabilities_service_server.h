@@ -112,16 +112,20 @@ typedef struct {
  * @param source_pac_records_num
  * @param sink_audio_locations_bitmap
  * @param source_audio_locations_bitmap
- * @param available_audio_contexts
- * @param supported_audio_contexts
+ * @param available_sink_audio_contexts_bitmap
+ * @param available_source_audio_contexts_bitmap
+ * @param supported_sink_audio_contexts_bitmap
+ * @param supported_source_audio_contexts_bitmap
  */
 void published_audio_capabilities_service_server_init(
         const pacs_record_t * sink_pac_records, uint8_t sink_pac_records_num,
         const pacs_record_t * source_pac_records, uint8_t source_pac_records_num,
         uint32_t sink_audio_locations_bitmap,
         uint32_t source_audio_locations_bitmap,
-        uint16_t available_audio_contexts_bitmap,
-        uint16_t supported_audio_contexts_bitmap);
+        uint16_t available_sink_audio_contexts_bitmap,
+        uint16_t available_source_audio_contexts_bitmap,
+        uint16_t supported_sink_audio_contexts_bitmap,
+        uint16_t supported_source_audio_contexts_bitmap);
 
 /**
  * @brief Register callback.
@@ -143,15 +147,21 @@ uint8_t published_audio_capabilities_service_server_set_source_audio_locations(u
 
 /**
  * @brief Set available audio context bitmap. The last subscribed client will be notified on change (this will be extended to all subscribed clients).
- * @param available_audio_contexts_bitmap
+ * @param available_sink_audio_contexts_bitmap
+ * @param available_source_audio_contexts_bitmap
  */
-uint8_t published_audio_capabilities_service_server_set_available_audio_contexts(uint16_t available_audio_contexts_bitmap);
+uint8_t published_audio_capabilities_service_server_set_available_audio_contexts(
+    uint16_t available_sink_audio_contexts_bitmap, 
+    uint16_t available_source_audio_contexts_bitmap);
 
 /**
  * @brief Set supported audio context bitmap. The last subscribed client will be notified on change (this will be extended to all subscribed clients).
- * @param supported_audio_contexts_bitmap
+ * @param supported_sink_audio_contexts_bitmap
+ * @param supported_source_audio_contexts_bitmap
  */
-uint8_t published_audio_capabilities_service_server_set_supported_audio_contexts(uint16_t supported_audio_contexts_bitmap);
+uint8_t published_audio_capabilities_service_server_set_supported_audio_contexts(
+    uint16_t supported_sink_audio_contexts_bitmap,
+    uint16_t supported_source_audio_contexts_bitmap);
 
 /* API_END */
 

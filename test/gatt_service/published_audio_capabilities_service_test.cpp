@@ -59,7 +59,6 @@ TEST_GROUP(PUBLISHED_AUDIO_CAPABILITIES_SERVICE_SERVER){
     att_service_handler_t * service; 
     uint16_t con_handle;
     uint16_t pacs_sinc_pac_handle_value;
-    uint16_t pacs_sinc_pac_handle_client_configuration;
     pacs_record_t sink_pac_records[1];
     uint8_t sink_pac_records_num;
     uint32_t sink_audio_location_bitmap;
@@ -69,7 +68,6 @@ TEST_GROUP(PUBLISHED_AUDIO_CAPABILITIES_SERVICE_SERVER){
         // setup database
         att_set_db(profile_data);
         pacs_sinc_pac_handle_value = gatt_server_get_value_handle_for_characteristic_with_uuid16(0, 0xffff, ORG_BLUETOOTH_CHARACTERISTIC_SINK_PAC);
-        pacs_sinc_pac_handle_client_configuration = gatt_server_get_client_configuration_handle_for_characteristic_with_uuid16(0, 0xffff, ORG_BLUETOOTH_CHARACTERISTIC_SINK_PAC);
         sink_pac_records_num = 1;
         sink_pac_records[0] = sink_record_0;
         // setup battery service
@@ -81,7 +79,7 @@ TEST_GROUP(PUBLISHED_AUDIO_CAPABILITIES_SERVICE_SERVER){
                 NULL, 0,
                 sink_audio_location_bitmap,
                 source_audio_location_bitmap,
-                0,0);
+                0,0,0,0);
 
         service = mock_att_server_get_service();
         con_handle = 0x00;
@@ -95,7 +93,6 @@ TEST_GROUP(PUBLISHED_AUDIO_CAPABILITIES_SERVICE_SERVER){
 
 TEST(PUBLISHED_AUDIO_CAPABILITIES_SERVICE_SERVER, lookup_attribute_handles){
     CHECK(pacs_sinc_pac_handle_value != 0);
-    CHECK(pacs_sinc_pac_handle_client_configuration != 0);
 }
 
 TEST(PUBLISHED_AUDIO_CAPABILITIES_SERVICE_SERVER, read_pac_handle_client_configuration) {
@@ -105,9 +102,6 @@ TEST(PUBLISHED_AUDIO_CAPABILITIES_SERVICE_SERVER, read_pac_handle_client_configu
     // invalid attribute handle
     response_len = mock_att_service_read_callback(con_handle, 0xffff, 0xffff, response, sizeof(response));
     CHECK_EQUAL(0, response_len);
-
-    response_len = mock_att_service_read_callback(con_handle, pacs_sinc_pac_handle_client_configuration, 0, response, sizeof(response));
-    CHECK_EQUAL(2, response_len);
 }
 
 TEST(PUBLISHED_AUDIO_CAPABILITIES_SERVICE_SERVER, read_whole_sink_pac_record) {

@@ -522,7 +522,7 @@ int btstack_main(void)
 
     sink_pac_records[0] = sink_record_0;
     sink_pac_records_num = 1;
-    published_audio_capabilities_service_server_init(sink_pac_records, sink_pac_records_num, NULL, 0, 0,0, 0,0);
+    published_audio_capabilities_service_server_init(sink_pac_records, sink_pac_records_num, NULL, 0, 0,0, 0,0, 0, 0);
 
 
     // setup advertisements
