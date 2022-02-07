@@ -343,17 +343,25 @@ static int published_audio_capabilities_service_write_callback(hci_con_handle_t 
 
     if (attribute_handle == pacs_sink_audio_locations_handle){
         if (buffer_size != 4){
-            return 0;
+            return ATT_ERROR_INVALID_ATTRIBUTE_VALUE_LENGTH;
         }
+
         uint32_t locations = little_endian_read_32(buffer, 0);
+        if (locations == LE_AUDIO_LOCATION_NOT_ALLOWED || locations >= LE_AUDIO_LOCATION_RFU){
+            return ATT_ERROR_VALUE_NOT_ALLOWED;
+        }
         published_audio_capabilities_service_server_set_sink_audio_locations(locations);
     }
 
     else if (attribute_handle == pacs_source_audio_locations_handle){
         if (buffer_size != 4){
-            return 0;
+            return ATT_ERROR_INVALID_ATTRIBUTE_VALUE_LENGTH;
         }
+
         uint32_t locations = little_endian_read_32(buffer, 0);
+        if (locations == LE_AUDIO_LOCATION_NOT_ALLOWED || locations >= LE_AUDIO_LOCATION_RFU){
+            return ATT_ERROR_VALUE_NOT_ALLOWED;
+        }
         published_audio_capabilities_service_server_set_source_audio_locations(locations);
     }
 
