@@ -243,7 +243,9 @@ static uint16_t pacs_store_records(const pacs_record_t * pacs, uint8_t pac_recor
 
 
 static void published_audio_capabilities_service_server_can_send_now(void * context){
-     if ((pacs_scheduled_tasks & PACS_TASK_SEND_SINK_AUDIO_LOCATIONS) != 0) {
+    UNUSED(context);
+
+    if ((pacs_scheduled_tasks & PACS_TASK_SEND_SINK_AUDIO_LOCATIONS) != 0) {
         pacs_scheduled_tasks &= ~PACS_TASK_SEND_SINK_AUDIO_LOCATIONS;
         uint8_t value[4];
         little_endian_store_32(value, 0, pacs_sink_audio_locations);
@@ -395,6 +397,44 @@ static void published_audio_capabilities_service_packet_handler(uint8_t packet_t
     }
 }
 
+    le_audio_codec_id_t codec_id; 
+
+    uint8_t codec_specific_capabilities_num;
+    const   pacs_codec_specific_capability_t * capabilities;
+
+    uint8_t metadata_length;
+    const uint8_t * metadata;
+
+static bool pacs_pac_records_capability_types_valid(const pacs_record_t * pac_records, uint8_t pac_records_num){
+    if (pac_records == NULL){
+        return true;
+    }
+
+    uint8_t i;
+
+    for (i = 0; i < pac_records_num; i++){
+        pacs_record_t record = pac_records[i];
+
+        uint8_t j;
+        for (j = 0; j < record.codec_specific_capabilities_num; j++){
+            pacs_codec_specific_capability_t capability = record.capabilities[j];
+            
+            switch (capability.type){
+                case PACS_CODEC_SPECIFIC_CAPABILITY_TYPE_SAMPLING_FREQUENCY:
+                case PACS_CODEC_SPECIFIC_CAPABILITY_TYPE_FRAME_DURATION:
+                case PACS_CODEC_SPECIFIC_CAPABILITY_TYPE_AUDIO_CHANNEL_ALLOCATION:
+                case PACS_CODEC_SPECIFIC_CAPABILITY_TYPE_OCTETS_PER_CODEC_FRAME:
+                case PACS_CODEC_SPECIFIC_CAPABILITY_TYPE_CODEC_FRAME_BLOCKS_PER_SDU:
+                    break;
+                default:
+                    return false;
+            }
+        }
+    }
+
+    return true;
+}
+
 void published_audio_capabilities_service_server_init(
         const pacs_record_t * sink_pac_records, uint8_t sink_pac_records_num,
         const pacs_record_t * source_pac_records, uint8_t source_pac_records_num,
@@ -413,10 +453,20 @@ void published_audio_capabilities_service_server_init(
 
     published_audio_capabilities_service_server_reset_values();
 
+    btstack_assert( (sink_pac_records != NULL && sink_pac_records_num != 0) || (source_pac_records != NULL && source_pac_records_num != 0) );
+
+    if (sink_pac_records != NULL){
+        btstack_assert(pacs_pac_records_capability_types_valid(sink_pac_records, sink_pac_records_num));
+    }
+    
+    if (source_pac_records != NULL){
+        btstack_assert(pacs_pac_records_capability_types_valid(source_pac_records, source_pac_records_num));
+    }
+
     pacs_sink_pac_records = sink_pac_records;
     pacs_sink_pac_records_num = sink_pac_records_num;
-    pacs_source_pac_records = sink_pac_records;
-    pacs_source_pac_records_num = sink_pac_records_num;
+    pacs_source_pac_records = source_pac_records;
+    pacs_source_pac_records_num = source_pac_records_num;
 
     published_audio_capabilities_service_server_set_sink_audio_locations(sink_audio_locations_bitmap);
     published_audio_capabilities_service_server_set_source_audio_locations(source_audio_locations_bitmap);
