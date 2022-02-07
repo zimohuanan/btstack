@@ -115,6 +115,8 @@ static aics_info_t aics_info[] = {
 };
 static uint8_t aics_info_num = 3;
 
+static pacs_node_t sink_node;
+
 static vocs_info_t vocs_info[] = {
         {
                 10, LEA_AUDIO_LOCATION_FRONT_RIGHT,
@@ -150,10 +152,7 @@ static pacs_record_t sink_record_0 = {
     my_metadata
 };
 
-
 static pacs_record_t sink_pac_records[1];
-static uint8_t sink_pac_records_num = 0;
-
 
 #ifdef ENABLE_GATT_OVER_CLASSIC
 #include "classic/gatt_sdp.h"
@@ -521,8 +520,11 @@ int btstack_main(void)
     audio_stream_control_service_server_init();
 
     sink_pac_records[0] = sink_record_0;
-    sink_pac_records_num = 1;
-    published_audio_capabilities_service_server_init(sink_pac_records, sink_pac_records_num, NULL, 0, 0,0, 0,0, 0, 0);
+    sink_node.pac_records = sink_pac_records;
+    sink_node.pac_records_num = 1;
+    sink_node.audio_locations_bitmap = LEA_AUDIO_LOCATION_FRONT_RIGHT;
+    
+    published_audio_capabilities_service_server_init(&sink_node, NULL);
 
 
     // setup advertisements

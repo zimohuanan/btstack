@@ -44,6 +44,8 @@ static pacs_record_t sink_record_0 = {
     my_metadata
 };
 
+static pacs_record_t sink_pac_records[1];
+
 uint8_t expected_response_sink_pac_record[] = {
         // num_records
         0x01,
@@ -59,27 +61,23 @@ TEST_GROUP(PUBLISHED_AUDIO_CAPABILITIES_SERVICE_SERVER){
     att_service_handler_t * service; 
     uint16_t con_handle;
     uint16_t pacs_sinc_pac_handle_value;
-    pacs_record_t sink_pac_records[1];
-    uint8_t sink_pac_records_num;
+
     uint32_t sink_audio_location_bitmap;
     uint32_t source_audio_location_bitmap;
+    pacs_node_t sink_node;
 
     void setup(void){
         // setup database
         att_set_db(profile_data);
         pacs_sinc_pac_handle_value = gatt_server_get_value_handle_for_characteristic_with_uuid16(0, 0xffff, ORG_BLUETOOTH_CHARACTERISTIC_SINK_PAC);
-        sink_pac_records_num = 1;
+        
         sink_pac_records[0] = sink_record_0;
-        // setup battery service
-        sink_audio_location_bitmap = LEA_AUDIO_LOCATION_FRONT_RIGHT;
-        source_audio_location_bitmap = LEA_AUDIO_LOCATION_NOT_ALLOWED;
+        
+        sink_node.pac_records = sink_pac_records;
+        sink_node.pac_records_num = 1;
+        sink_node.audio_locations_bitmap = LEA_AUDIO_LOCATION_FRONT_RIGHT;
 
-        published_audio_capabilities_service_server_init(
-                sink_pac_records, sink_pac_records_num,
-                NULL, 0,
-                sink_audio_location_bitmap,
-                source_audio_location_bitmap,
-                0,0,0,0);
+        published_audio_capabilities_service_server_init(&sink_node, NULL);
 
         service = mock_att_server_get_service();
         con_handle = 0x00;

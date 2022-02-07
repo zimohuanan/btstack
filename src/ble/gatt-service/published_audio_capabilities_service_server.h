@@ -75,29 +75,20 @@ typedef struct {
     const uint8_t * metadata;
 } pacs_record_t;
 
+typedef struct {
+    const pacs_record_t * pac_records;
+    uint8_t pac_records_num; 
+    uint32_t audio_locations_bitmap;
+    uint16_t available_audio_contexts_bitmap;
+    uint16_t supported_audio_contexts_bitmap;
+} pacs_node_t;
 
 /**
  * @brief Init Published Audio Capabilities Service Server with ATT DB
- * @param sink_pac_records
- * @param sink_pac_records_num
- * @param source_pac_records
- * @param source_pac_records_num
- * @param sink_audio_locations_bitmap
- * @param source_audio_locations_bitmap
- * @param available_sink_audio_contexts_bitmap
- * @param available_source_audio_contexts_bitmap
- * @param supported_sink_audio_contexts_bitmap
- * @param supported_source_audio_contexts_bitmap
+ * @param sink_node
+ * @param source_node
  */
-void published_audio_capabilities_service_server_init(
-        const pacs_record_t * sink_pac_records, uint8_t sink_pac_records_num,
-        const pacs_record_t * source_pac_records, uint8_t source_pac_records_num,
-        uint32_t sink_audio_locations_bitmap,
-        uint32_t source_audio_locations_bitmap,
-        uint16_t available_sink_audio_contexts_bitmap,
-        uint16_t available_source_audio_contexts_bitmap,
-        uint16_t supported_sink_audio_contexts_bitmap,
-        uint16_t supported_source_audio_contexts_bitmap);
+void published_audio_capabilities_service_server_init(pacs_node_t * sink_node, pacs_node_t * source_node);
 
 /**
  * @brief Register callback.
