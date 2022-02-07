@@ -60,21 +60,8 @@ extern "C" {
  */
 
 // Audio capabilities
-typedef enum {
-    PACS_CODEC_SPECIFIC_CAPABILITY_TYPE_SAMPLING_FREQUENCY = 0x01,
-    PACS_CODEC_SPECIFIC_CAPABILITY_TYPE_FRAME_DURATION,
-    PACS_CODEC_SPECIFIC_CAPABILITY_TYPE_AUDIO_CHANNEL_ALLOCATION,
-    PACS_CODEC_SPECIFIC_CAPABILITY_TYPE_OCTETS_PER_CODEC_FRAME,
-    PACS_CODEC_SPECIFIC_CAPABILITY_TYPE_CODEC_FRAME_BLOCKS_PER_SDU,
-} pacs_codec_specific_capability_type_t;
-
-typedef enum {
-    PACS_CODEC_FRAME_DURATION_7_5_MS = 0x00,
-    PACS_CODEC_FRAME_DURATION_10_MS = 0x01
-} pacs_codec_frame_duration_t;
-
 typedef struct {
-    pacs_codec_specific_capability_type_t type;
+    lea_codec_specific_capability_type_t type;
     const uint8_t * value; // max 5 bytes, value_length is fixed, and depends on type
 } pacs_codec_specific_capability_t;
 
@@ -87,6 +74,7 @@ typedef struct {
     uint8_t metadata_length;
     const uint8_t * metadata;
 } pacs_record_t;
+
 
 /**
  * @brief Init Published Audio Capabilities Service Server with ATT DB

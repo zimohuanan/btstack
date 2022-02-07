@@ -132,7 +132,7 @@ static uint8_t vocs_info_num = 2;
 
 const uint8_t  my_value[] = {0x06, 0x07};
 static pacs_codec_specific_capability_t my_capability = {
-        PACS_CODEC_SPECIFIC_CAPABILITY_TYPE_SAMPLING_FREQUENCY,
+        LEA_CODEC_SPECIFIC_CAPABILITY_TYPE_SAMPLING_FREQUENCY,
         my_value
     };
 const uint8_t my_metadata[] = {0x09, 0x0A, 0x0B, 0x0C};

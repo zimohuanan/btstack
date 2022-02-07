@@ -435,11 +435,11 @@ static bool pacs_pac_records_capability_types_valid(const pacs_record_t * pac_re
             pacs_codec_specific_capability_t capability = record.capabilities[j];
             
             switch (capability.type){
-                case PACS_CODEC_SPECIFIC_CAPABILITY_TYPE_SAMPLING_FREQUENCY:
-                case PACS_CODEC_SPECIFIC_CAPABILITY_TYPE_FRAME_DURATION:
-                case PACS_CODEC_SPECIFIC_CAPABILITY_TYPE_AUDIO_CHANNEL_ALLOCATION:
-                case PACS_CODEC_SPECIFIC_CAPABILITY_TYPE_OCTETS_PER_CODEC_FRAME:
-                case PACS_CODEC_SPECIFIC_CAPABILITY_TYPE_CODEC_FRAME_BLOCKS_PER_SDU:
+                case LEA_CODEC_SPECIFIC_CAPABILITY_TYPE_SAMPLING_FREQUENCY:
+                case LEA_CODEC_SPECIFIC_CAPABILITY_TYPE_FRAME_DURATION:
+                case LEA_CODEC_SPECIFIC_CAPABILITY_TYPE_AUDIO_CHANNEL_ALLOCATION:
+                case LEA_CODEC_SPECIFIC_CAPABILITY_TYPE_OCTETS_PER_CODEC_FRAME:
+                case LEA_CODEC_SPECIFIC_CAPABILITY_TYPE_CODEC_FRAME_BLOCKS_PER_SDU:
                     break;
                 default:
                     return false;

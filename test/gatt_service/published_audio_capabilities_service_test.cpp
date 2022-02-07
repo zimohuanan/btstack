@@ -26,7 +26,7 @@
 
 const uint8_t  my_value[]    = {0x06, 0x07};
 static pacs_codec_specific_capability_t my_capability = {
-        PACS_CODEC_SPECIFIC_CAPABILITY_TYPE_SAMPLING_FREQUENCY,
+        LEA_CODEC_SPECIFIC_CAPABILITY_TYPE_SAMPLING_FREQUENCY,
         my_value
     };
 const uint8_t my_metadata[] = {0x09, 0x0A, 0x0B, 0x0C};
@@ -50,7 +50,7 @@ uint8_t expected_response_sink_pac_record[] = {
         // codec id
         (uint8_t)LE_AUDIO_CODING_FORMAT_LC3, 0xBB, 0xAA, 0xDD, 0xCC,
         // cap. length, value_len + 1 byte for type, type, value
-        0x04, 0x03, (uint8_t)PACS_CODEC_SPECIFIC_CAPABILITY_TYPE_SAMPLING_FREQUENCY, 0x06, 0x07,
+        0x04, 0x03, (uint8_t)LEA_CODEC_SPECIFIC_CAPABILITY_TYPE_SAMPLING_FREQUENCY, 0x06, 0x07,
         // metadata len, metadata
         0x04, 0x09, 0x0A, 0x0B, 0x0C
 };
