@@ -470,7 +470,16 @@ void published_audio_capabilities_service_server_init(
 
     published_audio_capabilities_service_server_reset_values();
 
+    btstack_assert((sink_audio_locations_bitmap   & LEA_AUDIO_LOCATION_RFU) == 0);
+    btstack_assert((source_audio_locations_bitmap & LEA_AUDIO_LOCATION_RFU) == 0);
 
+    btstack_assert((available_sink_audio_contexts_bitmap   & LEA_CONTEXT_TYPE_RFU) == 0);
+    btstack_assert((available_source_audio_contexts_bitmap & LEA_CONTEXT_TYPE_RFU) == 0);
+
+    btstack_assert((supported_sink_audio_contexts_bitmap   & LEA_CONTEXT_TYPE_RFU) == 0);
+    btstack_assert((supported_source_audio_contexts_bitmap & LEA_CONTEXT_TYPE_RFU) == 0);
+
+    btstack_assert( (sink_pac_records != NULL && sink_pac_records_num != 0) || (source_pac_records != NULL && source_pac_records_num != 0) );
     if (sink_pac_records != NULL){
         btstack_assert(pacs_pac_records_capability_types_valid(sink_pac_records, sink_pac_records_num));
     }
@@ -521,12 +530,16 @@ void published_audio_capabilities_service_server_register_packet_handler(btstack
 
 
 uint8_t published_audio_capabilities_service_server_set_sink_audio_locations(uint32_t audio_locations_bitmap){
+    btstack_assert((audio_locations_bitmap   & LEA_AUDIO_LOCATION_RFU) == 0);
+
     pacs_sink_audio_locations = audio_locations_bitmap;
     published_audio_capabilities_service_server_set_callback(PACS_TASK_SEND_SINK_AUDIO_LOCATIONS);
     return ERROR_CODE_SUCCESS;
 }
 
 uint8_t published_audio_capabilities_service_server_set_source_audio_locations(uint32_t audio_locations_bitmap){
+    btstack_assert((audio_locations_bitmap & LEA_AUDIO_LOCATION_RFU) == 0);
+    
     pacs_source_audio_locations = audio_locations_bitmap;
     published_audio_capabilities_service_server_set_callback(PACS_TASK_SEND_SOURCE_AUDIO_LOCATIONS);
     return ERROR_CODE_SUCCESS;
@@ -535,6 +548,9 @@ uint8_t published_audio_capabilities_service_server_set_source_audio_locations(u
 uint8_t published_audio_capabilities_service_server_set_available_audio_contexts(
     uint16_t available_sink_audio_contexts_bitmap, 
     uint16_t available_source_audio_contexts_bitmap){
+    
+    btstack_assert((available_sink_audio_contexts_bitmap   & LEA_CONTEXT_TYPE_RFU) == 0);
+    btstack_assert((available_source_audio_contexts_bitmap & LEA_CONTEXT_TYPE_RFU) == 0);
 
     pacs_sink_available_audio_contexts_bitmap = available_sink_audio_contexts_bitmap;
     pacs_source_available_audio_contexts_bitmap = available_source_audio_contexts_bitmap;
@@ -545,6 +561,9 @@ uint8_t published_audio_capabilities_service_server_set_available_audio_contexts
 uint8_t published_audio_capabilities_service_server_set_supported_audio_contexts(
     uint16_t supported_sink_audio_contexts_bitmap, 
     uint16_t supported_source_audio_contexts_bitmap){
+
+    btstack_assert((supported_sink_audio_contexts_bitmap   & LEA_CONTEXT_TYPE_RFU) == 0);
+    btstack_assert((supported_source_audio_contexts_bitmap & LEA_CONTEXT_TYPE_RFU) == 0);
 
     pacs_sink_supported_audio_contexts_bitmap = supported_sink_audio_contexts_bitmap;
     pacs_source_supported_audio_contexts_bitmap = supported_source_audio_contexts_bitmap;
