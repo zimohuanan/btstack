@@ -50,36 +50,52 @@ extern "C" {
 #endif
 
 // Generic Audio/Audio Location Definitions/Bitmap
-#define LE_AUDIO_LOCATION_NOT_ALLOWED             0x00000000
-#define LE_AUDIO_LOCATION_FRONT_LEFT              0x00000001
-#define LE_AUDIO_LOCATION_FRONT_RIGHT             0x00000002
-#define LE_AUDIO_LOCATION_FRONT_CENTER            0x00000004
-#define LE_AUDIO_LOCATION_LOW_FREQUENCY_EFFECTS1  0x00000008
-#define LE_AUDIO_LOCATION_BACK_LEFT               0x00000010
-#define LE_AUDIO_LOCATION_BACK_RIGHT              0x00000020
-#define LE_AUDIO_LOCATION_FRONT_LEFT_OF_CENTER    0x00000040
-#define LE_AUDIO_LOCATION_FRONT_RIGHT_OF_CENTER   0x00000080
-#define LE_AUDIO_LOCATION_BACK_CENTER             0x00000100
-#define LE_AUDIO_LOCATION_LOW_FREQUENCY_EFFECTS2  0x00000200
-#define LE_AUDIO_LOCATION_SIDE_LEFT               0x00000400
-#define LE_AUDIO_LOCATION_SIDE_RIGHT              0x00000800
-#define LE_AUDIO_LOCATION_TOP_FRONT_LEFT          0x00001000
-#define LE_AUDIO_LOCATION_TOP_FRONT_RIGHT         0x00002000
-#define LE_AUDIO_LOCATION_TOP_FRONT_CENTER        0x00004000
-#define LE_AUDIO_LOCATION_TOP_CENTER              0x00008000
-#define LE_AUDIO_LOCATION_TOP_BACK_LEFT           0x00010000
-#define LE_AUDIO_LOCATION_TOP_BACK_RIGHT          0x00020000
-#define LE_AUDIO_LOCATION_TOP_SIDE_LEFT           0x00040000
-#define LE_AUDIO_LOCATION_TOP_SIDE_RIGHT          0x00080000
-#define LE_AUDIO_LOCATION_TOP_BACK_CENTER         0x00100000
-#define LE_AUDIO_LOCATION_BOTTOM_FRONT_CENTER     0x00200000
-#define LE_AUDIO_LOCATION_BOTTOM_FRONT_LEFT       0x00400000
-#define LE_AUDIO_LOCATION_BOTTOM_FRONT_RIGHT      0x00800000
-#define LE_AUDIO_LOCATION_FRONT_LEFT_WIDE         0x01000000
-#define LE_AUDIO_LOCATION_FRONT_RIGHT_WIDE        0x02000000
-#define LE_AUDIO_LOCATION_LEFT_SURROUND           0x04000000
-#define LE_AUDIO_LOCATION_RIGHT_SURROUND          0x08000000
-#define LE_AUDIO_LOCATION_RFU                     0x10000000
+#define LEA_AUDIO_LOCATION_NOT_ALLOWED             0x00000000
+#define LEA_AUDIO_LOCATION_FRONT_LEFT              0x00000001
+#define LEA_AUDIO_LOCATION_FRONT_RIGHT             0x00000002
+#define LEA_AUDIO_LOCATION_FRONT_CENTER            0x00000004
+#define LEA_AUDIO_LOCATION_LOW_FREQUENCY_EFFECTS1  0x00000008
+#define LEA_AUDIO_LOCATION_BACK_LEFT               0x00000010
+#define LEA_AUDIO_LOCATION_BACK_RIGHT              0x00000020
+#define LEA_AUDIO_LOCATION_FRONT_LEFT_OF_CENTER    0x00000040
+#define LEA_AUDIO_LOCATION_FRONT_RIGHT_OF_CENTER   0x00000080
+#define LEA_AUDIO_LOCATION_BACK_CENTER             0x00000100
+#define LEA_AUDIO_LOCATION_LOW_FREQUENCY_EFFECTS2  0x00000200
+#define LEA_AUDIO_LOCATION_SIDE_LEFT               0x00000400
+#define LEA_AUDIO_LOCATION_SIDE_RIGHT              0x00000800
+#define LEA_AUDIO_LOCATION_TOP_FRONT_LEFT          0x00001000
+#define LEA_AUDIO_LOCATION_TOP_FRONT_RIGHT         0x00002000
+#define LEA_AUDIO_LOCATION_TOP_FRONT_CENTER        0x00004000
+#define LEA_AUDIO_LOCATION_TOP_CENTER              0x00008000
+#define LEA_AUDIO_LOCATION_TOP_BACK_LEFT           0x00010000
+#define LEA_AUDIO_LOCATION_TOP_BACK_RIGHT          0x00020000
+#define LEA_AUDIO_LOCATION_TOP_SIDE_LEFT           0x00040000
+#define LEA_AUDIO_LOCATION_TOP_SIDE_RIGHT          0x00080000
+#define LEA_AUDIO_LOCATION_TOP_BACK_CENTER         0x00100000
+#define LEA_AUDIO_LOCATION_BOTTOM_FRONT_CENTER     0x00200000
+#define LEA_AUDIO_LOCATION_BOTTOM_FRONT_LEFT       0x00400000
+#define LEA_AUDIO_LOCATION_BOTTOM_FRONT_RIGHT      0x00800000
+#define LEA_AUDIO_LOCATION_FRONT_LEFT_WIDE         0x01000000
+#define LEA_AUDIO_LOCATION_FRONT_RIGHT_WIDE        0x02000000
+#define LEA_AUDIO_LOCATION_LEFT_SURROUND           0x04000000
+#define LEA_AUDIO_LOCATION_RIGHT_SURROUND          0x08000000
+#define LEA_AUDIO_LOCATION_RFU                     0xF0000000
+
+// Generic Audio/Context Type
+#define LEA_CONTEXT_TYPE_PROHIBITED                0x0000
+#define LEA_CONTEXT_TYPE_UNSPECIFIED               0x0001
+#define LEA_CONTEXT_TYPE_CONVERSATIONAL            0x0002 // Conversation between humans, for example, in telephony or video calls, including traditional cellular as well as VoIP and Push-to-Talk
+#define LEA_CONTEXT_TYPE_MEDIA                     0x0004 // Media, for example, music playback, radio, podcast or movie soundtrack, or tv audio
+#define LEA_CONTEXT_TYPE_GAME                      0x0008 // Audio associated with video gaming, for example gaming media; gaming effects; music and in-game voice chat between participants; or a mix of all the above
+#define LEA_CONTEXT_TYPE_INSTRUCTIONAL             0x0010 // Instructional audio, for example, in navigation, announcements, or user guidance
+#define LEA_CONTEXT_TYPE_VOICE_ASSISTANTS          0x0020 // Man-machine communication, for example, with voice recognition or virtual assistants
+#define LEA_CONTEXT_TYPE_LIVE                      0x0040 // Live audio, for example, from a microphone where audio is perceived both through a direct acoustic path and through an LE Audio Stream
+#define LEA_CONTEXT_TYPE_SOUND_EFFECTS             0x0080 // Sound effects including keyboard and touch feedback; menu and user interface sounds; and other system sounds
+#define LEA_CONTEXT_TYPE_NOTIFICATIONS             0x0100 // Notification and reminder sounds; attention-seeking audio, for example, in beeps signaling the arrival of a message
+#define LEA_CONTEXT_TYPE_RINGTONE                  0x0200 // Alerts the user to an incoming call, for example, an incoming telephony or video call, including traditional cellular as well as VoIP and Push-to-Talk
+#define LEA_CONTEXT_TYPE_ALERTS                    0x0400 // Alarms and timers; immediate alerts, for example, in a critical battery alarm, timer expiry or alarm clock, toaster, cooker, kettle, microwave, etc.
+#define LEA_CONTEXT_TYPE_EMERGENCY_ALARM           0x0800 //Emergency alarm Emergency sounds, for example, fire alarms or other urgent alerts
+#define LEA_CONTEXT_TYPE_RFU                       0xF000
 
 typedef enum {
     LEA_CODEC_SAMPLING_FREQUENCY_8000_HZ   = 0x01,

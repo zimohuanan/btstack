@@ -71,8 +71,8 @@ TEST_GROUP(PUBLISHED_AUDIO_CAPABILITIES_SERVICE_SERVER){
         sink_pac_records_num = 1;
         sink_pac_records[0] = sink_record_0;
         // setup battery service
-        sink_audio_location_bitmap = LE_AUDIO_LOCATION_FRONT_RIGHT;
-        source_audio_location_bitmap = LE_AUDIO_LOCATION_NOT_ALLOWED;
+        sink_audio_location_bitmap = LEA_AUDIO_LOCATION_FRONT_RIGHT;
+        source_audio_location_bitmap = LEA_AUDIO_LOCATION_NOT_ALLOWED;
 
         published_audio_capabilities_service_server_init(
                 sink_pac_records, sink_pac_records_num,

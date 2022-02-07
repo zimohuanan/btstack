@@ -354,7 +354,7 @@ static int published_audio_capabilities_service_write_callback(hci_con_handle_t 
         }
 
         uint32_t locations = little_endian_read_32(buffer, 0);
-        if (locations == LE_AUDIO_LOCATION_NOT_ALLOWED || locations >= LE_AUDIO_LOCATION_RFU){
+        if (locations == LEA_AUDIO_LOCATION_NOT_ALLOWED || ((locations & LEA_AUDIO_LOCATION_RFU) != 0 )){
             return ATT_ERROR_VALUE_NOT_ALLOWED;
         }
         published_audio_capabilities_service_server_set_sink_audio_locations(locations);
@@ -366,7 +366,7 @@ static int published_audio_capabilities_service_write_callback(hci_con_handle_t 
         }
 
         uint32_t locations = little_endian_read_32(buffer, 0);
-        if (locations == LE_AUDIO_LOCATION_NOT_ALLOWED || locations >= LE_AUDIO_LOCATION_RFU){
+        if (locations == LEA_AUDIO_LOCATION_NOT_ALLOWED || ((locations & LEA_AUDIO_LOCATION_RFU) != 0 )){
             return ATT_ERROR_VALUE_NOT_ALLOWED;
         }
         published_audio_capabilities_service_server_set_source_audio_locations(locations);
@@ -474,7 +474,6 @@ void published_audio_capabilities_service_server_init(
     if (sink_pac_records != NULL){
         btstack_assert(pacs_pac_records_capability_types_valid(sink_pac_records, sink_pac_records_num));
     }
-    
     if (source_pac_records != NULL){
         btstack_assert(pacs_pac_records_capability_types_valid(source_pac_records, source_pac_records_num));
     }

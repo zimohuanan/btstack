@@ -117,12 +117,12 @@ static uint8_t aics_info_num = 3;
 
 static vocs_info_t vocs_info[] = {
         {
-                10, LE_AUDIO_LOCATION_FRONT_RIGHT,
+                10, LEA_AUDIO_LOCATION_FRONT_RIGHT,
                 "ao_description1",
                 packet_handler
         },
         {
-                20, LE_AUDIO_LOCATION_FRONT_LEFT,
+                20, LEA_AUDIO_LOCATION_FRONT_LEFT,
                 "ao_description2",
                 packet_handler
         }
@@ -429,7 +429,7 @@ static void stdin_process(char c){
         }
         case 'o':
             printf("VOCS: set audio location of VOCS[0]\n");
-            volume_control_service_server_set_audio_location_for_vocs(0, LE_AUDIO_LOCATION_FRONT_CENTER );
+            volume_control_service_server_set_audio_location_for_vocs(0, LEA_AUDIO_LOCATION_FRONT_CENTER );
             break;
         case 'O':
             printf("VOCS: set audio output desc of VOCS[0]\n");
