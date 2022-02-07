@@ -115,7 +115,7 @@ static aics_info_t aics_info[] = {
 };
 static uint8_t aics_info_num = 3;
 
-static pacs_node_t sink_node;
+static pacs_endpoint_t sink_node;
 
 static vocs_info_t vocs_info[] = {
         {
@@ -520,8 +520,8 @@ int btstack_main(void)
     audio_stream_control_service_server_init();
 
     sink_pac_records[0] = sink_record_0;
-    sink_node.pac_records = sink_pac_records;
-    sink_node.pac_records_num = 1;
+    sink_node.records = sink_pac_records;
+    sink_node.records_num = 1;
     sink_node.audio_locations_bitmap = LEA_AUDIO_LOCATION_FRONT_RIGHT;
     
     published_audio_capabilities_service_server_init(&sink_node, NULL);

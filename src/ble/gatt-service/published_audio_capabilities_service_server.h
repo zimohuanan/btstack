@@ -76,19 +76,19 @@ typedef struct {
 } pacs_record_t;
 
 typedef struct {
-    const pacs_record_t * pac_records;
-    uint8_t pac_records_num; 
+    const pacs_record_t * records;
+    uint8_t records_num;
     uint32_t audio_locations_bitmap;
     uint16_t available_audio_contexts_bitmap;
     uint16_t supported_audio_contexts_bitmap;
-} pacs_node_t;
+} pacs_endpoint_t;
 
 /**
  * @brief Init Published Audio Capabilities Service Server with ATT DB
- * @param sink_node
- * @param source_node
+ * @param sink_endpoint
+ * @param source_endpoint
  */
-void published_audio_capabilities_service_server_init(pacs_node_t * sink_node, pacs_node_t * source_node);
+void published_audio_capabilities_service_server_init(pacs_endpoint_t * sink_endpoint, pacs_endpoint_t * source_endpoint);
 
 /**
  * @brief Register callback.

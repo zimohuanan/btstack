@@ -257,8 +257,8 @@ static void published_audio_capabilities_service_server_can_send_now(void * cont
     } else if ((pacs_scheduled_tasks & PACS_TASK_SEND_SOURCE_AUDIO_LOCATIONS) != 0) {
         pacs_scheduled_tasks &= ~PACS_TASK_SEND_SOURCE_AUDIO_LOCATIONS;
         uint8_t value[4];
-        little_endian_store_32(value, 0, pacs_sink_audio_locations);
-        att_server_notify(pacs_con_handle, pacs_sink_audio_locations_handle, &value[0], sizeof(value));
+        little_endian_store_32(value, 0, pacs_source_audio_locations);
+        att_server_notify(pacs_con_handle, pacs_source_audio_locations_handle, &value[0], sizeof(value));
 
     } else if ((pacs_scheduled_tasks & PACS_TASK_SEND_AVAILABLE_AUDIO_CONTEXTS) != 0) {
         pacs_scheduled_tasks &= ~PACS_TASK_SEND_AVAILABLE_AUDIO_CONTEXTS;
@@ -420,7 +420,7 @@ static void published_audio_capabilities_service_packet_handler(uint8_t packet_t
     uint8_t metadata_length;
     const uint8_t * metadata;
 
-static bool pacs_node_valid(pacs_node_t * node){
+static bool pacs_node_valid(pacs_endpoint_t * node){
     if ((node->audio_locations_bitmap & LEA_AUDIO_LOCATION_RFU) != 0){
         return false;
     }
@@ -437,8 +437,8 @@ static bool pacs_node_valid(pacs_node_t * node){
 
     uint8_t i;
 
-    for (i = 0; i < node->pac_records_num; i++){
-        pacs_record_t record = node->pac_records[i];
+    for (i = 0; i < node->records_num; i++){
+        pacs_record_t record = node->records[i];
 
         uint8_t j;
         for (j = 0; j < record.codec_specific_capabilities_num; j++){
@@ -459,7 +459,7 @@ static bool pacs_node_valid(pacs_node_t * node){
     return true;
 }
 
-void published_audio_capabilities_service_server_init(pacs_node_t * sink_node, pacs_node_t * source_node){
+void published_audio_capabilities_service_server_init(pacs_endpoint_t * sink_endpoint, pacs_endpoint_t * source_endpoint){
     // get service handle range
     uint16_t start_handle = 0;
     uint16_t end_handle   = 0xfff;
@@ -469,21 +469,21 @@ void published_audio_capabilities_service_server_init(pacs_node_t * sink_node, p
 
     published_audio_capabilities_service_server_reset_values();
 
-    btstack_assert( (sink_node->pac_records != NULL && sink_node->pac_records_num != 0) || 
-        (sink_node->pac_records != NULL && sink_node->pac_records_num != 0) );
+    btstack_assert((sink_endpoint->records != NULL && sink_endpoint->records_num != 0) ||
+                   (source_endpoint->records != NULL && source_endpoint->records_num != 0) );
    
-    btstack_assert(pacs_node_valid(sink_node));
-    btstack_assert(pacs_node_valid(source_node));
+    btstack_assert(pacs_node_valid(sink_endpoint));
+    btstack_assert(pacs_node_valid(source_endpoint));
     
-    pacs_sink_pac_records = sink_node->pac_records;
-    pacs_sink_pac_records_num = sink_node->pac_records_num;
-    pacs_source_pac_records = source_node->pac_records;
-    pacs_source_pac_records_num = source_node->pac_records_num;
+    pacs_sink_pac_records = sink_endpoint->records;
+    pacs_sink_pac_records_num = sink_endpoint->records_num;
+    pacs_source_pac_records = source_endpoint->records;
+    pacs_source_pac_records_num = source_endpoint->records_num;
 
-    published_audio_capabilities_service_server_set_sink_audio_locations(sink_node->audio_locations_bitmap);
-    published_audio_capabilities_service_server_set_source_audio_locations(source_node->audio_locations_bitmap);
-    published_audio_capabilities_service_server_set_available_audio_contexts(sink_node->available_audio_contexts_bitmap, source_node->available_audio_contexts_bitmap);
-    published_audio_capabilities_service_server_set_supported_audio_contexts(sink_node->supported_audio_contexts_bitmap, source_node->supported_audio_contexts_bitmap);
+    published_audio_capabilities_service_server_set_sink_audio_locations(sink_endpoint->audio_locations_bitmap);
+    published_audio_capabilities_service_server_set_source_audio_locations(source_endpoint->audio_locations_bitmap);
+    published_audio_capabilities_service_server_set_available_audio_contexts(sink_endpoint->available_audio_contexts_bitmap, source_endpoint->available_audio_contexts_bitmap);
+    published_audio_capabilities_service_server_set_supported_audio_contexts(sink_endpoint->supported_audio_contexts_bitmap, source_endpoint->supported_audio_contexts_bitmap);
 
     pacs_sinc_pac_handle = gatt_server_get_value_handle_for_characteristic_with_uuid16(start_handle, end_handle, ORG_BLUETOOTH_CHARACTERISTIC_SINK_PAC);
 
