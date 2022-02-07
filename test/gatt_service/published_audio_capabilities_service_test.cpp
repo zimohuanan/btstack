@@ -33,7 +33,7 @@ const uint8_t my_metadata[] = {0x09, 0x0A, 0x0B, 0x0C};
 
 static pacs_record_t sink_record_0 = {
     // codec ID
-    {0x00, 0xAABB, 0xCCDD},
+    {LE_AUDIO_CODING_FORMAT_LC3, 0xAABB, 0xCCDD},
     // num capabilities
     1, 
     // capabilities
@@ -48,7 +48,7 @@ uint8_t expected_response_sink_pac_record[] = {
         // num_records
         0x01,
         // codec id
-        0x00, 0xBB, 0xAA, 0xDD, 0xCC,
+        (uint8_t)LE_AUDIO_CODING_FORMAT_LC3, 0xBB, 0xAA, 0xDD, 0xCC,
         // cap. length, value_len + 1 byte for type, type, value
         0x04, 0x03, (uint8_t)PACS_CODEC_SPECIFIC_CAPABILITY_TYPE_SAMPLING_FREQUENCY, 0x06, 0x07,
         // metadata len, metadata

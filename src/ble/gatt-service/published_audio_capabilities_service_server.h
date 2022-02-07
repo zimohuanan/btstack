@@ -95,7 +95,7 @@ typedef struct {
 } pacs_codec_specific_capability_t;
 
 typedef struct {
-    le_audio_codec_id_t codec_id; 
+    lea_codec_id_t codec_id; 
 
     uint8_t codec_specific_capabilities_num;
     const   pacs_codec_specific_capability_t * capabilities;
