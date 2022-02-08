@@ -49,10 +49,25 @@
 extern "C" {
 #endif
 
+#define BASS_ERROR_CODE_OPCODE_NOT_SUPPORTED            0x80
+#define BASS_ERROR_CODE_INVALID_SOURCE_ID               0x81
+
 /* API_START */
 
+typedef struct {
+    btstack_linked_item_t item;
+
+    // characteristic:  RECEIVE_STATE 
+    uint16_t bass_receive_state_handle;
+    uint16_t bass_receive_state_client_configuration_handle;
+    uint16_t bass_receive_state_client_configuration;
+} bass_source_t;
+
 /**
- * @text The Broadcast Audio Scan Service Server exposes an interface for distributing and consuming audio using BLE.
+ * @text The Broadcast Audio Scan Service is used by servers to expose their status with respect 
+ * to synchronization to broadcast Audio Streams and associated data, including Broadcast_Codes 
+ * used to decrypt encrypted broadcast Audio Streams. Clients can use the attributes exposed by 
+ * servers to observe and/or request changes in server behavior.
  * 
  * To use with your application, add `#import <broadcast_audio_scan_service.gatt>` to your .gatt file. 
  */
@@ -60,7 +75,7 @@ extern "C" {
 /**
  * @brief Init Broadcast Audio Scan Service Server with ATT DB
  */
-void broadcast_audio_scan_service_server_init(void);
+void broadcast_audio_scan_service_server_init(uint8_t bass_source_num, bass_source_t * sources);
 
 /**
  * @brief Register callback.

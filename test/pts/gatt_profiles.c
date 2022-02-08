@@ -154,6 +154,11 @@ static pacs_record_t sink_record_0 = {
 
 static pacs_record_t sink_pac_records[1];
 
+static bass_source_t bass_source_1;
+static bass_source_t bass_source_2;
+static bass_source_t bass_sources[2];
+
+
 #ifdef ENABLE_GATT_OVER_CLASSIC
 #include "classic/gatt_sdp.h"
 #include "classic/sdp_util.h"
@@ -516,7 +521,6 @@ int btstack_main(void)
 
     volume_control_service_server_init(vcs_volume_state_setting , vcs_volume_state_mute, aics_info_num, aics_info, vocs_info_num, vocs_info);
     
-    broadcast_audio_scan_service_server_init();
     audio_stream_control_service_server_init();
 
     sink_pac_records[0] = sink_record_0;
@@ -526,6 +530,10 @@ int btstack_main(void)
     
     published_audio_capabilities_service_server_init(&sink_node, NULL);
 
+    bass_sources[0] = bass_source_1;
+    bass_sources[1] = bass_source_2;
+    broadcast_audio_scan_service_server_init(2, bass_sources);
+    
 
     // setup advertisements
     uint16_t adv_int_min = 0x0030;
