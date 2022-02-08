@@ -211,39 +211,29 @@ static uint16_t pacs_store_records(const pacs_record_t * pacs, uint8_t pac_recor
         little_endian_store_16(field_data, 3, pacs[i].codec_id.vendor_specific_codec_id);
         stored_bytes += pacs_store_field(field_data, 5, pac_records_offset, read_offset, buffer, buffer_size);
         pac_records_offset += 5;
-    }
-
-    for (i = 0; i < pac_records_num; i++){
+    
         field_data[0] = pacs_total_codec_specific_capabilities_length(pacs[i]);
         stored_bytes += pacs_store_field(field_data, 1, pac_records_offset, read_offset, buffer, buffer_size);
         pac_records_offset++;
-    }
-
-    for (i = 0; i < pac_records_num; i++){
-        if (pacs_total_codec_specific_capabilities_length(pacs[i]) == 0){
-            continue;
+    
+        if (pacs_total_codec_specific_capabilities_length(pacs[i]) != 0){
+            uint8_t j;
+            for (j = 0; j < pacs[i].codec_specific_capabilities_num; j++){
+                uint16_t field_len = pack_codec_capability(pacs[i].capabilities[j], field_data);
+                stored_bytes += pacs_store_field(field_data, field_len, pac_records_offset, read_offset, buffer, buffer_size);
+                pac_records_offset += field_len;
+            }
         }
-        uint8_t j;
-        for (j = 0; j < pacs[i].codec_specific_capabilities_num; j++){
-            uint16_t field_len = pack_codec_capability(pacs[i].capabilities[j], field_data);
-            stored_bytes += pacs_store_field(field_data, field_len, pac_records_offset, read_offset, buffer, buffer_size);
-            pac_records_offset += field_len;
-        }
-    }
  
-    for (i = 0; i < pac_records_num; i++){
         field_data[0] = pacs[i].metadata_length;
         stored_bytes += pacs_store_field(field_data, 1, pac_records_offset, read_offset, buffer, buffer_size);
         pac_records_offset++;
-    }
-
-    for (i = 0; i < pac_records_num; i++){
+ 
         stored_bytes += pacs_store_field(pacs[i].metadata, pacs[i].metadata_length, pac_records_offset, read_offset, buffer, buffer_size);
         pac_records_offset += pacs[i].metadata_length;
     }
     return stored_bytes;
 }
-
 
 static void published_audio_capabilities_service_server_can_send_now(void * context){
     UNUSED(context);
@@ -421,6 +411,9 @@ static void published_audio_capabilities_service_packet_handler(uint8_t packet_t
     const uint8_t * metadata;
 
 static bool pacs_node_valid(pacs_endpoint_t * node){
+    if (node == NULL){
+        return true;
+    }
     if ((node->audio_locations_bitmap & LEA_AUDIO_LOCATION_RFU) != 0){
         return false;
     }
@@ -429,10 +422,6 @@ static bool pacs_node_valid(pacs_endpoint_t * node){
     }
     if ((node->supported_audio_contexts_bitmap & LEA_CONTEXT_TYPE_RFU) != 0){
         return false;
-    }
-
-    if (node == NULL){
-        return true;
     }
 
     uint8_t i;
@@ -469,21 +458,27 @@ void published_audio_capabilities_service_server_init(pacs_endpoint_t * sink_end
 
     published_audio_capabilities_service_server_reset_values();
 
-    btstack_assert((sink_endpoint->records != NULL && sink_endpoint->records_num != 0) ||
-                   (source_endpoint->records != NULL && source_endpoint->records_num != 0) );
-   
-    btstack_assert(pacs_node_valid(sink_endpoint));
-    btstack_assert(pacs_node_valid(source_endpoint));
-    
-    pacs_sink_pac_records = sink_endpoint->records;
-    pacs_sink_pac_records_num = sink_endpoint->records_num;
-    pacs_source_pac_records = source_endpoint->records;
-    pacs_source_pac_records_num = source_endpoint->records_num;
+    btstack_assert((sink_endpoint != NULL) || (source_endpoint != NULL));
 
-    published_audio_capabilities_service_server_set_sink_audio_locations(sink_endpoint->audio_locations_bitmap);
-    published_audio_capabilities_service_server_set_source_audio_locations(source_endpoint->audio_locations_bitmap);
-    published_audio_capabilities_service_server_set_available_audio_contexts(sink_endpoint->available_audio_contexts_bitmap, source_endpoint->available_audio_contexts_bitmap);
-    published_audio_capabilities_service_server_set_supported_audio_contexts(sink_endpoint->supported_audio_contexts_bitmap, source_endpoint->supported_audio_contexts_bitmap);
+    if (sink_endpoint){
+        btstack_assert((sink_endpoint->records != NULL) && (sink_endpoint->records_num != 0));
+        btstack_assert(pacs_node_valid(sink_endpoint));
+        pacs_sink_pac_records = sink_endpoint->records;
+        pacs_sink_pac_records_num = sink_endpoint->records_num;
+        pacs_sink_supported_audio_contexts_bitmap = sink_endpoint->supported_audio_contexts_bitmap;
+        pacs_sink_available_audio_contexts_bitmap = sink_endpoint->available_audio_contexts_bitmap;
+        pacs_sink_audio_locations = sink_endpoint->audio_locations_bitmap;
+    }
+
+    if (source_endpoint){
+        btstack_assert((source_endpoint->records != NULL) && (source_endpoint->records_num != 0));
+        btstack_assert(pacs_node_valid(source_endpoint));
+        pacs_source_pac_records = source_endpoint->records;
+        pacs_source_pac_records_num = source_endpoint->records_num;
+        pacs_source_supported_audio_contexts_bitmap = source_endpoint->supported_audio_contexts_bitmap;
+        pacs_source_available_audio_contexts_bitmap = source_endpoint->available_audio_contexts_bitmap;
+        pacs_source_audio_locations = source_endpoint->audio_locations_bitmap;
+    }
 
     pacs_sinc_pac_handle = gatt_server_get_value_handle_for_characteristic_with_uuid16(start_handle, end_handle, ORG_BLUETOOTH_CHARACTERISTIC_SINK_PAC);
 
@@ -547,7 +542,7 @@ uint8_t published_audio_capabilities_service_server_set_available_audio_contexts
 }
 
 uint8_t published_audio_capabilities_service_server_set_supported_audio_contexts(
-    uint16_t supported_sink_audio_contexts_bitmap, 
+    uint16_t supported_sink_audio_contexts_bitmap,
     uint16_t supported_source_audio_contexts_bitmap){
 
     btstack_assert((supported_sink_audio_contexts_bitmap   & LEA_CONTEXT_TYPE_RFU) == 0);
