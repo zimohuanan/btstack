@@ -369,9 +369,7 @@ static void volume_control_init_included_aics_services(uint16_t vcs_start_handle
     }
 }
 
-static void volume_control_init_included_vocs_services(uint16_t vcs_start_handle, uint16_t vcs_end_handle, uint8_t vocs_info_num, vocs_info_t * vocs_info){
-    uint16_t start_handle = vcs_start_handle + 1;
-    uint16_t end_handle = vcs_end_handle - 1;
+static void volume_control_init_included_vocs_services(uint16_t start_handle, uint16_t end_handle, uint8_t vocs_info_num, vocs_info_t * vocs_info){
     vocs_services_num = 0;
 
     // include and enumerate AICS services
