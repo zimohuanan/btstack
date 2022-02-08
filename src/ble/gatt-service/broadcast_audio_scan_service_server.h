@@ -37,13 +37,20 @@
 
 /**
  * @title Broadcast Audio Scan Service Server (BASS)
+ *
+ * @text The Broadcast Audio Scan Service is used by servers to expose their status with respect 
+ * to synchronization to broadcast Audio Streams and associated data, including Broadcast_Codes 
+ * used to decrypt encrypted broadcast Audio Streams. Clients can use the attributes exposed by 
+ * servers to observe and/or request changes in server behavior.
  * 
+ * To use with your application, add `#import <broadcast_audio_scan_service.gatt>` to your .gatt file. 
  */
 
 #ifndef broadcast_audio_scan_service_server_H
 #define broadcast_audio_scan_service_server_H
 
 #include <stdint.h>
+#include "le_audio.h"
 
 #if defined __cplusplus
 extern "C" {
@@ -55,22 +62,41 @@ extern "C" {
 /* API_START */
 
 typedef struct {
-    btstack_linked_item_t item;
+    // 4-octet bitfield. Shall not exist if num_subgroups = 0
+    // Bit 0-30 = BIS_index[1-31] 
+    // 0x00000000: 0 = Not synchronized to BIS_index[x] 
+    // 0xxxxxxxxx: 1 = Synchronized to BIS_index[x] 
+    // 0xFFFFFFFF: Failed to sync to BIG
+    uint32_t  bis_sync_state;
 
-    // characteristic:  RECEIVE_STATE 
+    uint8_t   metadata_length;
+    uint8_t * metadata;
+} bass_subgroup_t;
+
+// memory for list of these structs is allocated by the application
+typedef struct {
+    // assigned by the server
+    btstack_linked_item_t item;
+    uint8_t  source_id; 
+    
     uint16_t bass_receive_state_handle;
     uint16_t bass_receive_state_client_configuration_handle;
     uint16_t bass_receive_state_client_configuration;
+
+    // assigned by client via control point
+    bd_addr_type_t address_type; 
+    bd_addr_t address;
+    uint8_t  source_adv_sid;
+    uint8_t  broadcast_id[3];
+    lea_pa_sync_state_t pa_sync_state;
+    lea_big_encryption_t big_encryption;
+    uint8_t  bad_code[16];
+    
+    uint8_t  subgroups_num;
+    // Shall not exist if num_subgroups = 0
+    bass_subgroup_t * subgroups;
 } bass_source_t;
 
-/**
- * @text The Broadcast Audio Scan Service is used by servers to expose their status with respect 
- * to synchronization to broadcast Audio Streams and associated data, including Broadcast_Codes 
- * used to decrypt encrypted broadcast Audio Streams. Clients can use the attributes exposed by 
- * servers to observe and/or request changes in server behavior.
- * 
- * To use with your application, add `#import <broadcast_audio_scan_service.gatt>` to your .gatt file. 
- */
 
 /**
  * @brief Init Broadcast Audio Scan Service Server with ATT DB
