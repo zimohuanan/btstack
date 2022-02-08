@@ -133,6 +133,24 @@ typedef struct {
     uint16_t vendor_specific_codec_id;
 } lea_codec_id_t;
 
+typedef enum {
+    LEA_PA_SYNC_STATE_NOT_SYNCHRONIZED_TO_PA = 0x00,
+    LEA_PA_SYNC_STATE_SYNCINFO_REQUEST,
+    LEA_PA_SYNC_STATE_SYNCHRONIZED_TO_PA,
+    LEA_PA_SYNC_STATE_FAILED_TO_SYNCHRONIZE_TO_PA,
+    LEA_PA_SYNC_STATE_NO_PAST,
+    LEA_PA_SYNC_STATE_RFU
+} lea_pa_sync_state_t;
+
+typedef enum {
+    LEA_BIG_ENCRYPTION_NOT_ENCRYPTED = 0x00,
+    LEA_BIG_ENCRYPTION_BROADCAST_CODE_REQUIRED,
+    LEA_BIG_ENCRYPTION_DECRYPTING,
+    LEA_BIG_ENCRYPTION_BAD_CODE,
+    LEA_BIG_ENCRYPTION_RFU
+} lea_big_encryption_t;
+
+
 #if defined __cplusplus
 }
 #endif
