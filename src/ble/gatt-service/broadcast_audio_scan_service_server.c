@@ -57,6 +57,17 @@ static uint16_t bass_audio_scan_control_point_handle;
 
 static btstack_linked_list_t bass_sources;
 static uint8_t  bass_sources_num = 0;
+static uint8_t  bass_source_counter = 0;
+
+static uint16_t bass_get_next_source_id(void){
+    uint8_t next_cid;
+    if (bass_source_counter == 0xff) {
+        next_cid = 1;
+    } else {
+        next_cid = bass_source_counter + 1;
+    }
+    return next_cid;
+}
 
 static bass_source_t * bass_find_receive_state_for_value_handle(uint16_t attribute_handle){
     btstack_linked_list_iterator_t it;    
@@ -172,8 +183,10 @@ void broadcast_audio_scan_service_server_init(uint8_t sources_num, bass_source_t
         if (chr_value_handle == 0){
             break;
         }
-
-        btstack_linked_list_add(&bass_sources, (btstack_linked_item_t *)&sources[bass_sources_num]);
+        bass_source_t * source = &sources[bass_sources_num];
+        source->source_id = bass_get_next_source_id();
+        
+        btstack_linked_list_add(&bass_sources, (btstack_linked_item_t *)source);
         start_handle = chr_client_configuration_handle + 1;
         bass_sources_num++;
     }
