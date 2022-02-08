@@ -126,13 +126,9 @@ typedef enum {
     LEA_CODEC_SAMPLING_FREQUENCY_384000_HZ = 0x0D
 } lea_codec_sampling_frequency_t;
 
-typedef enum {
-    LE_AUDIO_CODING_FORMAT_LC3 = 0x06
-} lea_coding_format_t;
-
 // struct for codec id
 typedef struct {
-    lea_coding_format_t coding_format;
+    hci_audio_coding_format_t coding_format;
     uint16_t company_id;
     uint16_t vendor_specific_codec_id;
 } lea_codec_id_t;

@@ -141,7 +141,7 @@ const uint8_t my_metadata[] = {0x09, 0x0A, 0x0B, 0x0C};
 
 static pacs_record_t sink_record_0 = {
     // codec ID
-    {LE_AUDIO_CODING_FORMAT_LC3, 0xAABB, 0xCCDD},
+    {HCI_AUDIO_CODING_FORMAT_LC3, 0xAABB, 0xCCDD},
     // num capabilities
     1, 
     // capabilities
