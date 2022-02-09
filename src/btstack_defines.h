@@ -3879,6 +3879,20 @@ typedef uint8_t sm_key_t[16];
 */
 #define GATTSERVICE_SUBEVENT_VCS_VOLUME_FLAGS                                 0x25u
 
+/**
+ * @format 12
+ * @param subevent_code
+ * @param con_handle
+*/
+#define GATTSERVICE_SUBEVENT_BASS_REMOTE_SCAN_STOPED                           0x26u
+
+/**
+ * @format 12
+ * @param subevent_code
+ * @param con_handle
+*/
+#define GATTSERVICE_SUBEVENT_BASS_REMOTE_SCAN_STARTED                          0x27u
+
 
 // MAP Meta Event Group
 

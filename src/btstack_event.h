@@ -12155,6 +12155,26 @@ static inline uint8_t gattservice_subevent_vcs_volume_flags_get_flags(const uint
 }
 
 /**
+ * @brief Get field con_handle from event GATTSERVICE_SUBEVENT_BASS_REMOTE_SCAN_STOPED
+ * @param event packet
+ * @return con_handle
+ * @note: btstack_type 2
+ */
+static inline uint16_t gattservice_subevent_bass_remote_scan_stoped_get_con_handle(const uint8_t * event){
+    return little_endian_read_16(event, 3);
+}
+
+/**
+ * @brief Get field con_handle from event GATTSERVICE_SUBEVENT_BASS_REMOTE_SCAN_STARTED
+ * @param event packet
+ * @return con_handle
+ * @note: btstack_type 2
+ */
+static inline uint16_t gattservice_subevent_bass_remote_scan_started_get_con_handle(const uint8_t * event){
+    return little_endian_read_16(event, 3);
+}
+
+/**
  * @brief Get field map_cid from event MAP_SUBEVENT_CONNECTION_OPENED
  * @param event packet
  * @return map_cid
