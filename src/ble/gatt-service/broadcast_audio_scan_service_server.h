@@ -59,6 +59,9 @@ extern "C" {
 #define BASS_ERROR_CODE_OPCODE_NOT_SUPPORTED            0x80
 #define BASS_ERROR_CODE_INVALID_SOURCE_ID               0x81
 
+#define BASS_METADATA_MAX_LENGTH                          20
+#define BASS_SUBGROUPS_MAX_NUM                             4
+
 /* API_START */
 
 typedef struct {
@@ -70,13 +73,14 @@ typedef struct {
     uint32_t  bis_sync_state;
 
     uint8_t   metadata_length;
-    uint8_t * metadata;
+    uint8_t   metadata[BASS_METADATA_MAX_LENGTH];
 } bass_subgroup_t;
 
 // memory for list of these structs is allocated by the application
 typedef struct {
     // assigned by the server
     btstack_linked_item_t item;
+    // source_id = 0, when source is empty
     uint8_t  source_id; 
     
     uint16_t bass_receive_state_handle;
@@ -86,15 +90,15 @@ typedef struct {
     // assigned by client via control point
     bd_addr_type_t address_type; 
     bd_addr_t address;
-    uint8_t  source_adv_sid;
-    uint8_t  broadcast_id[3];
+    uint8_t  adv_sid;
+    uint32_t broadcast_id;
     lea_pa_sync_state_t pa_sync_state;
     lea_big_encryption_t big_encryption;
     uint8_t  bad_code[16];
     
     uint8_t  subgroups_num;
     // Shall not exist if num_subgroups = 0
-    bass_subgroup_t * subgroups;
+    bass_subgroup_t subgroups[BASS_SUBGROUPS_MAX_NUM];
 } bass_source_t;
 
 
