@@ -150,47 +150,16 @@ static uint8_t pack_codec_capability(pacs_codec_specific_capability_t capability
     return pos;
 }
 
-static uint16_t pacs_store_field(
-    const uint8_t * field_data, uint16_t field_len, 
-    // position of field in complete data block
-    uint16_t pac_records_offset, 
-    uint16_t read_offset,
-    uint8_t * buffer, uint16_t buffer_size){
+// help with buffer == NULL
+static uint16_t pacs_virtual_memcpy(
+    const uint8_t * field_data, uint16_t field_len, uint16_t field_offset,
+    uint8_t * buffer, uint16_t buffer_size, uint16_t buffer_offset){
 
     // only calc total size
     if (buffer == NULL) {
         return field_len;
     }
-
-    uint16_t after_buffer = read_offset + buffer_size ;
-    // bail before buffer
-    if ((pac_records_offset + field_len) < read_offset){
-        return 0;
-    }
-    // bail after buffer
-    if (pac_records_offset >= after_buffer){
-        return 0;
-    }
-    // calc overlap
-    uint16_t bytes_to_copy = field_len;
-    
-    uint16_t skip_at_start = 0;
-    if (pac_records_offset < read_offset){
-        skip_at_start = read_offset - pac_records_offset;
-        bytes_to_copy -= skip_at_start;
-    }
-
-    uint16_t skip_at_end = 0;
-    if ((pac_records_offset + field_len) > after_buffer){
-        skip_at_end = (pac_records_offset + field_len) - after_buffer;
-        bytes_to_copy -= skip_at_end;
-    }
-    
-    btstack_assert((skip_at_end + skip_at_start) <= field_len);
-    btstack_assert(bytes_to_copy <= field_len);
-
-    memcpy(&buffer[(pac_records_offset + skip_at_start) - read_offset], &field_data[skip_at_start], bytes_to_copy);
-    return bytes_to_copy;
+    return btstack_virtual_memcpy(field_data, field_len, field_offset, buffer, buffer_size, buffer_offset);
 }
 
 // offset gives position into fully serialized pacs record
@@ -202,34 +171,34 @@ static uint16_t pacs_store_records(const pacs_record_t * pacs, uint8_t pac_recor
     memset(buffer, 0, buffer_size);
 
     field_data[0] = pac_records_num;
-    stored_bytes += pacs_store_field(field_data, 1, pac_records_offset, read_offset, buffer, buffer_size);
+    stored_bytes += pacs_virtual_memcpy(field_data, 1, pac_records_offset, buffer, buffer_size, read_offset);
     pac_records_offset++;
     
     for (i = 0; i < pac_records_num; i++){
         field_data[0] = pacs[i].codec_id.coding_format;
         little_endian_store_16(field_data, 1, pacs[i].codec_id.company_id);
         little_endian_store_16(field_data, 3, pacs[i].codec_id.vendor_specific_codec_id);
-        stored_bytes += pacs_store_field(field_data, 5, pac_records_offset, read_offset, buffer, buffer_size);
+        stored_bytes += pacs_virtual_memcpy(field_data, 5, pac_records_offset, buffer, buffer_size, read_offset);
         pac_records_offset += 5;
     
         field_data[0] = pacs_total_codec_specific_capabilities_length(pacs[i]);
-        stored_bytes += pacs_store_field(field_data, 1, pac_records_offset, read_offset, buffer, buffer_size);
+        stored_bytes += pacs_virtual_memcpy(field_data, 1, pac_records_offset, buffer, buffer_size, read_offset);
         pac_records_offset++;
     
         if (pacs_total_codec_specific_capabilities_length(pacs[i]) != 0){
             uint8_t j;
             for (j = 0; j < pacs[i].codec_specific_capabilities_num; j++){
                 uint16_t field_len = pack_codec_capability(pacs[i].capabilities[j], field_data);
-                stored_bytes += pacs_store_field(field_data, field_len, pac_records_offset, read_offset, buffer, buffer_size);
+                stored_bytes += pacs_virtual_memcpy(field_data, field_len, pac_records_offset, buffer, buffer_size, read_offset);
                 pac_records_offset += field_len;
             }
         }
  
         field_data[0] = pacs[i].metadata_length;
-        stored_bytes += pacs_store_field(field_data, 1, pac_records_offset, read_offset, buffer, buffer_size);
+        stored_bytes += pacs_virtual_memcpy(field_data, 1, pac_records_offset, buffer, buffer_size, read_offset);
         pac_records_offset++;
  
-        stored_bytes += pacs_store_field(pacs[i].metadata, pacs[i].metadata_length, pac_records_offset, read_offset, buffer, buffer_size);
+        stored_bytes += pacs_virtual_memcpy(pacs[i].metadata, pacs[i].metadata_length, pac_records_offset, buffer, buffer_size, read_offset);
         pac_records_offset += pacs[i].metadata_length;
     }
     return stored_bytes;
