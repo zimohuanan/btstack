@@ -105,20 +105,101 @@ static void bass_set_con_handle(hci_con_handle_t con_handle, uint16_t configurat
     bass_con_handle = (configuration == 0) ? HCI_CON_HANDLE_INVALID : con_handle;
 }
 
+// help with buffer == NULL
+static uint16_t bass_virtual_memcpy(
+    const uint8_t * field_data, uint16_t field_len, uint16_t field_offset,
+    uint8_t * buffer, uint16_t buffer_size, uint16_t buffer_offset){
+
+    // only calc total size
+    if (buffer == NULL) {
+        return field_len;
+    }
+    return btstack_virtual_memcpy(field_data, field_len, field_offset, buffer, buffer_size, buffer_offset);
+}
+
+// offset gives position into fully serialized pacs record
+static uint16_t bass_store_source(bass_source_t * source, uint16_t read_offset, uint8_t * buffer, uint16_t buffer_size){
+    uint8_t  field_data[16];
+    uint16_t source_offset = 0;
+    uint16_t stored_bytes = 0;
+    memset(buffer, 0, buffer_size);
+
+    field_data[0] = source->source_id;
+    stored_bytes += bass_virtual_memcpy(field_data, 1, source_offset, buffer, buffer_size, read_offset);
+    source_offset++;
+
+    field_data[0] = (uint8_t)source->address_type;
+    stored_bytes += bass_virtual_memcpy(field_data, 1, source_offset, buffer, buffer_size, read_offset);
+    source_offset++;
+    
+    reverse_bd_addr(source->address, &field_data[0]);
+    stored_bytes += bass_virtual_memcpy(field_data, 6, source_offset, buffer, buffer_size, read_offset);
+    source_offset += 6;
+
+    field_data[0] = source->adv_sid;
+    stored_bytes += bass_virtual_memcpy(field_data, 1, source_offset, buffer, buffer_size, read_offset);
+    source_offset++;
+
+    little_endian_store_24(field_data, 0, source->broadcast_id);
+    stored_bytes += bass_virtual_memcpy(field_data, 3, source_offset, buffer, buffer_size, read_offset);
+    source_offset += 3;
+
+    field_data[0] = (uint8_t)source->pa_sync_state;
+    stored_bytes += bass_virtual_memcpy(field_data, 1, source_offset, buffer, buffer_size, read_offset);
+    source_offset++;
+
+    field_data[0] = (uint8_t)source->big_encryption;
+    stored_bytes += bass_virtual_memcpy(field_data, 1, source_offset, buffer, buffer_size, read_offset);
+    source_offset++;
+
+    if (source->big_encryption == LEA_BIG_ENCRYPTION_BAD_CODE){
+        reverse_128(source->bad_code, &field_data[0]);
+        stored_bytes += bass_virtual_memcpy(field_data, 16, source_offset, buffer, buffer_size, read_offset);
+        source_offset += 16;
+    }
+
+    field_data[0] = (uint8_t)source->subgroups_num;
+    stored_bytes += bass_virtual_memcpy(field_data, 1, source_offset, buffer, buffer_size, read_offset);
+    source_offset++;
+
+    if (source->subgroups_num == 0){
+        return stored_bytes;
+    }
+
+    uint8_t i;
+    for (i = 0; i < source->subgroups_num; i++){
+        bass_subgroup_t subgroup = source->subgroups[source->subgroups_num];
+
+        little_endian_store_32(field_data, 0, subgroup.bis_sync_state);
+        stored_bytes += bass_virtual_memcpy(field_data, 4, source_offset, buffer, buffer_size, read_offset);
+        source_offset += 4;
+
+        field_data[0] = subgroup.metadata_length;
+        stored_bytes += bass_virtual_memcpy(field_data, 1, source_offset, buffer, buffer_size, read_offset);
+        source_offset++;
+
+        stored_bytes += bass_virtual_memcpy(subgroup.metadata, subgroup.metadata_length, source_offset, buffer, buffer_size, read_offset);
+        source_offset += subgroup.metadata_length;
+    }
+    
+    return stored_bytes;
+}
+
 static uint16_t broadcast_audio_scan_service_read_callback(hci_con_handle_t con_handle, uint16_t attribute_handle, uint16_t offset, uint8_t * buffer, uint16_t buffer_size){
     UNUSED(con_handle);
 
     bass_source_t * source;
 
-    source = bass_find_receive_state_for_client_configuration_handle(attribute_handle);
-    if (source){
-         return att_read_callback_handle_little_endian_16(source->bass_receive_state_client_configuration, offset, buffer, buffer_size);
-    }
-
     source = bass_find_receive_state_for_value_handle(attribute_handle);
     if (source){
-        // TODO
+        return bass_store_source(source, offset, buffer, buffer_size);
     }
+
+    source = bass_find_receive_state_for_client_configuration_handle(attribute_handle);
+    if (source){
+        return att_read_callback_handle_little_endian_16(source->bass_receive_state_client_configuration, offset, buffer, buffer_size);
+    }
+
     return 0;
 }
 
@@ -185,7 +266,7 @@ void broadcast_audio_scan_service_server_init(uint8_t sources_num, bass_source_t
         }
         bass_source_t * source = &sources[bass_sources_num];
         source->source_id = bass_get_next_source_id();
-        
+
         btstack_linked_list_add(&bass_sources, (btstack_linked_item_t *)source);
         start_handle = chr_client_configuration_handle + 1;
         bass_sources_num++;
