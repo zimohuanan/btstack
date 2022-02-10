@@ -80,6 +80,8 @@ typedef struct {
 typedef struct {
     // assigned by the server
     btstack_linked_item_t item;
+    uint8_t update_counter;
+    
     // source_id = 0, when source is empty
     uint8_t  source_id; 
     

@@ -67,17 +67,27 @@ static uint16_t bass_audio_scan_control_point_handle;
 static btstack_linked_list_t bass_sources;
 static uint8_t  bass_sources_num = 0;
 static uint8_t  bass_source_counter = 0;
+static uint8_t  bass_update_counter = 0;
 
-static uint16_t bass_get_next_source_id(void){
-    uint8_t next_cid;
+static uint8_t bass_get_next_source_id(void){
+    uint8_t next_source_id;
     if (bass_source_counter == 0xff) {
-        next_cid = 1;
+        next_source_id = 1;
     } else {
-        next_cid = bass_source_counter + 1;
+        next_source_id = bass_source_counter + 1;
     }
-    return next_cid;
+    return next_source_id;
 }
 
+static uint8_t bass_get_next_update_counter(void){
+    uint8_t next_update_counter;
+    if (bass_update_counter == 0xff) {
+        next_update_counter = 0;
+    } else {
+        next_update_counter = bass_update_counter + 1;
+    }
+    return next_update_counter;
+}
 static bass_source_t * bass_find_receive_state_for_value_handle(uint16_t attribute_handle){
     btstack_linked_list_iterator_t it;    
     btstack_linked_list_iterator_init(&it, &bass_sources);
@@ -329,7 +339,8 @@ void broadcast_audio_scan_service_server_init(uint8_t sources_num, bass_source_t
         }
         bass_source_t * source = &sources[bass_sources_num];
         source->source_id = bass_get_next_source_id();
-
+        source->update_counter = bass_get_next_update_counter();
+        
         btstack_linked_list_add(&bass_sources, (btstack_linked_item_t *)source);
         start_handle = chr_client_configuration_handle + 1;
         bass_sources_num++;
