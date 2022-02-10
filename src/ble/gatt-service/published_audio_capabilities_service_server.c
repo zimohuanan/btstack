@@ -371,13 +371,6 @@ static void published_audio_capabilities_service_packet_handler(uint8_t packet_t
     }
 }
 
-    lea_codec_id_t codec_id; 
-
-    uint8_t codec_specific_capabilities_num;
-    const   pacs_codec_specific_capability_t * capabilities;
-
-    uint8_t metadata_length;
-    const uint8_t * metadata;
 
 static bool pacs_node_valid(pacs_endpoint_t * node){
     if (node == NULL){
