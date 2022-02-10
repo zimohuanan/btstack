@@ -47,6 +47,15 @@
 
 #include "ble/gatt-service/broadcast_audio_scan_service_server.h"
 
+typedef enum {
+   BASS_OPCODE_REMOTE_SCAN_STOPPED = 0x00,
+   BASS_OPCODE_REMOTE_SCAN_STARTED,
+   BASS_OPCODE_ADD_SOURCE,
+   BASS_OPCODE_MODIFY_SOURCE,
+   BASS_OPCODE_SET_BROADCAST_CODE,
+   BASS_OPCODE_REMOVE_SOURCE, 
+   BASS_OPCODE_RFU
+} bass_opcode_t;
 
 static att_service_handler_t    broadcast_audio_scan_service;
 static hci_con_handle_t         bass_con_handle;
@@ -104,6 +113,33 @@ static void broadcast_audio_scan_service_server_reset_values(void){
 static void bass_set_con_handle(hci_con_handle_t con_handle, uint16_t configuration){
     bass_con_handle = (configuration == 0) ? HCI_CON_HANDLE_INVALID : con_handle;
 }
+
+static void bass_emit_remote_scan_stoped(void){
+    btstack_assert(bass_event_callback != NULL);
+    
+    uint8_t event[5];
+    uint8_t pos = 0;
+    event[pos++] = HCI_EVENT_GATTSERVICE_META;
+    event[pos++] = sizeof(event) - 2;
+    event[pos++] = GATTSERVICE_SUBEVENT_BASS_REMOTE_SCAN_STOPED;
+    little_endian_store_16(event, pos, bass_con_handle);
+    pos += 2;
+    (*bass_event_callback)(HCI_EVENT_PACKET, 0, event, sizeof(event));
+}
+
+static void bass_emit_remote_scan_started(void){
+    btstack_assert(bass_event_callback != NULL);
+    
+    uint8_t event[5];
+    uint8_t pos = 0;
+    event[pos++] = HCI_EVENT_GATTSERVICE_META;
+    event[pos++] = sizeof(event) - 2;
+    event[pos++] = GATTSERVICE_SUBEVENT_BASS_REMOTE_SCAN_STARTED;
+    little_endian_store_16(event, pos, bass_con_handle);
+    pos += 2;
+    (*bass_event_callback)(HCI_EVENT_PACKET, 0, event, sizeof(event));
+}
+
 
 // help with buffer == NULL
 static uint16_t bass_virtual_memcpy(
@@ -206,10 +242,37 @@ static uint16_t broadcast_audio_scan_service_read_callback(hci_con_handle_t con_
 static int broadcast_audio_scan_service_write_callback(hci_con_handle_t con_handle, uint16_t attribute_handle, uint16_t transaction_mode, uint16_t offset, uint8_t *buffer, uint16_t buffer_size){
     UNUSED(transaction_mode);
     UNUSED(offset);
-    UNUSED(buffer_size);
     
     if (attribute_handle == bass_audio_scan_control_point_handle){
-        // TODO
+        if (buffer_size != 1){
+            return BASS_ERROR_CODE_OPCODE_NOT_SUPPORTED;
+        }
+
+        bass_opcode_t opcode = (bass_opcode_t)buffer[0];
+        switch (opcode){
+            case BASS_OPCODE_REMOTE_SCAN_STOPPED:
+                bass_emit_remote_scan_stoped();
+                break;
+
+            case BASS_OPCODE_REMOTE_SCAN_STARTED:
+                bass_emit_remote_scan_started();
+                break;
+
+            case BASS_OPCODE_ADD_SOURCE:
+                break;
+
+            case BASS_OPCODE_MODIFY_SOURCE:
+                break;
+
+            case BASS_OPCODE_SET_BROADCAST_CODE:
+                break;
+
+            case BASS_OPCODE_REMOVE_SOURCE:
+                break;
+
+            default:
+                return BASS_ERROR_CODE_OPCODE_NOT_SUPPORTED;
+        }   
     }
 
     else {
