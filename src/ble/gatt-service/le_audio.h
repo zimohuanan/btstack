@@ -133,6 +133,14 @@ typedef struct {
     uint16_t vendor_specific_codec_id;
 } lea_codec_id_t;
 
+
+typedef enum {
+    LEA_PA_SYNC_DO_NOT_SYNCHRONIZE_TO_PA = 0x00,
+    LEA_PA_SYNC_SYNCHRONIZE_TO_PA_PAST_AVAILABLE,
+    LEA_PA_SYNC_SYNCHRONIZE_TO_PA_PAST_NOT_AVAILABLE,
+    LEA_PA_SYNC_RFU
+} lea_pa_sync_t;
+
 typedef enum {
     LEA_PA_SYNC_STATE_NOT_SYNCHRONIZED_TO_PA = 0x00,
     LEA_PA_SYNC_STATE_SYNCINFO_REQUEST,
