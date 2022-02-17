@@ -81,7 +81,7 @@ typedef struct {
     // assigned by the server
     btstack_linked_item_t item;
     uint8_t update_counter;
-    
+
     // source_id = 0, when source is empty
     uint8_t  source_id; 
     
@@ -98,6 +98,8 @@ typedef struct {
     lea_big_encryption_t big_encryption;
     uint8_t  bad_code[16];
     
+    uint16_t pa_interval;
+
     uint8_t  subgroups_num;
     // Shall not exist if num_subgroups = 0
     bass_subgroup_t subgroups[BASS_SUBGROUPS_MAX_NUM];
@@ -114,6 +116,8 @@ void broadcast_audio_scan_service_server_init(uint8_t bass_source_num, bass_sour
  * @param callback
  */
 void broadcast_audio_scan_service_server_register_packet_handler(btstack_packet_handler_t callback);
+
+void broadcast_audio_scan_service_server_set_pa_sync_state(uint8_t source_id, lea_pa_sync_state_t sync_state);
 
 /* API_END */
 

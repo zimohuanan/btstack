@@ -88,6 +88,34 @@ static uint8_t bass_get_next_update_counter(void){
     }
     return next_update_counter;
 }
+
+// returns positive number if counter a > b
+static int8_t bass_counter_delta(uint8_t counter_a, uint8_t counter_b){
+    return (int8_t)(counter_a - counter_b);
+}
+
+static bass_source_t * bass_find_empty_or_least_used_source(void){
+    bass_source_t * least_used_source = NULL;
+
+    btstack_linked_list_iterator_t it;    
+    btstack_linked_list_iterator_init(&it, &bass_sources);
+    while (btstack_linked_list_iterator_has_next(&it)){
+        bass_source_t * item = (bass_source_t*) btstack_linked_list_iterator_next(&it);
+        if (item->source_id == 0){
+            return item;
+        }
+        if (!least_used_source){
+            least_used_source = item;
+            continue;
+        }
+        if (bass_counter_delta(item->update_counter, least_used_source->update_counter) < 0 ){
+            least_used_source = item;
+        }
+    }
+    btstack_assert(least_used_source != NULL);
+    return least_used_source;
+}
+
 static bass_source_t * bass_find_receive_state_for_value_handle(uint16_t attribute_handle){
     btstack_linked_list_iterator_t it;    
     btstack_linked_list_iterator_init(&it, &bass_sources);
@@ -105,6 +133,17 @@ static bass_source_t * bass_find_receive_state_for_client_configuration_handle(u
     while (btstack_linked_list_iterator_has_next(&it)){
         bass_source_t * item = (bass_source_t*) btstack_linked_list_iterator_next(&it);
         if (attribute_handle != item->bass_receive_state_handle) continue;
+        return item;
+    }
+    return NULL;
+}
+
+static bass_source_t * bass_find_source_for_source_id(uint8_t source_id){
+    btstack_linked_list_iterator_t it;    
+    btstack_linked_list_iterator_init(&it, &bass_sources);
+    while (btstack_linked_list_iterator_has_next(&it)){
+        bass_source_t * item = (bass_source_t*) btstack_linked_list_iterator_next(&it);
+        if (source_id != item->source_id) continue;
         return item;
     }
     return NULL;
@@ -150,6 +189,25 @@ static void bass_emit_remote_scan_started(void){
     (*bass_event_callback)(HCI_EVENT_PACKET, 0, event, sizeof(event));
 }
 
+static void bass_emit_remote_pa_sync_state(bass_source_t * source, uint8_t * buffer){
+    btstack_assert(bass_event_callback != NULL);
+    
+    uint8_t event[20];
+    uint8_t pos = 0;
+    event[pos++] = HCI_EVENT_GATTSERVICE_META;
+    event[pos++] = sizeof(event) - 2;
+    event[pos++] = GATTSERVICE_SUBEVENT_BASS_PA_SYNC_STATE;
+    little_endian_store_16(event, pos, bass_con_handle);
+    pos += 2;
+    event[pos++] = source->source_id;
+
+    // addr type(1), addr(6), sid(1), bid(3), pa_sync_state(1), pa_interval(2)
+    memcpy(&event[pos], buffer, 14);
+    pos += 14;
+    event[17] = source->pa_sync_state;
+
+    (*bass_event_callback)(HCI_EVENT_PACKET, 0, event, sizeof(event));
+}
 
 // help with buffer == NULL
 static uint16_t bass_virtual_memcpy(
@@ -249,6 +307,103 @@ static uint16_t broadcast_audio_scan_service_read_callback(hci_con_handle_t con_
     return 0;
 }
 
+static bool bass_source_accept(uint8_t *buffer, uint16_t buffer_size){
+    uint8_t pos = 0;
+    // addr type
+    uint8_t adv_type = buffer[pos++];
+    if (adv_type > (uint8_t)BD_ADDR_TYPE_LE_RANDOM){
+        log_info("Unexpected adv_type 0x%02X", adv_type);
+        return false;
+    }
+    // address
+    pos += 6;
+    // advertising_sid Range: 0x00-0x0F
+    uint8_t advertising_sid = buffer[pos++];
+    if (advertising_sid > 0x0F){
+        log_info("Advertising sid out of range 0x%02X", advertising_sid);
+        return false;
+    }
+    // broadcast_id
+    pos += 3;
+    // pa_sync_state
+    uint8_t pa_sync = buffer[pos++];
+    if (pa_sync >= (uint8_t)LEA_PA_SYNC_RFU){
+        log_info("Unexpected pa_sync 0x%02X", pa_sync);
+        return false;
+    }
+    // pa_interval
+    pos += 2;
+
+    uint8_t num_subgroups = buffer[pos++];
+    if (num_subgroups > BASS_SUBGROUPS_MAX_NUM){
+        log_info("Number of subgroups %u exceedes maximum %u", num_subgroups, BASS_SUBGROUPS_MAX_NUM);
+        return false;
+    }
+    
+    uint8_t i;
+    for (i = 0; i < num_subgroups; i++){
+        // bis_sync
+        pos += 4;
+        // metadata_length
+        uint8_t metadata_length = buffer[pos];
+        pos += 1;
+        
+        if (metadata_length > BASS_METADATA_MAX_LENGTH){
+            log_info("Metadata length %u exceedes maximum %u", metadata_length, BASS_METADATA_MAX_LENGTH);
+            return false;
+        }    
+        // metadata
+        pos += buffer[pos];
+    }
+    return (pos == buffer_size);
+}
+
+
+static void broadcast_audio_scan_service_server_sync_info_request(bass_source_t * source){
+    // TODO notify client
+    // TODO start timer
+    
+}
+
+static void bass_add_source(bass_source_t * source, uint8_t *buffer, uint16_t buffer_size){
+    UNUSED(buffer_size);
+
+    uint8_t pos = 0;
+    source->adv_sid = buffer[pos++];
+    source->broadcast_id = little_endian_read_24(buffer, pos);
+    pos += 3;
+
+    lea_pa_sync_t pa_sync = (lea_pa_sync_t)buffer[pos++]; 
+    switch (pa_sync){
+        case LEA_PA_SYNC_DO_NOT_SYNCHRONIZE_TO_PA:
+            source->pa_sync_state = LEA_PA_SYNC_STATE_NOT_SYNCHRONIZED_TO_PA;
+            break;
+        case LEA_PA_SYNC_SYNCHRONIZE_TO_PA_PAST_AVAILABLE:
+        case LEA_PA_SYNC_SYNCHRONIZE_TO_PA_PAST_NOT_AVAILABLE:
+            source->pa_sync_state = LEA_PA_SYNC_STATE_SYNCINFO_REQUEST;
+            broadcast_audio_scan_service_server_sync_info_request(source);
+            bass_emit_remote_pa_sync_state(source, buffer);
+            break;
+        default:
+            break;
+    }
+    
+    source->pa_interval = little_endian_read_16(buffer, pos);
+    pos += 2;
+    source->subgroups_num = buffer[pos++];
+
+    uint8_t i;
+    for (i = 0; i < source->subgroups_num; i++){
+        // bis_sync
+        source->subgroups[i].bis_sync_state = little_endian_read_32(buffer, pos);
+        pos += 4;
+        source->subgroups[i].metadata_length = buffer[pos++];
+        // metadata
+        memcpy(source->subgroups[i].metadata, &buffer[pos], source->subgroups[i].metadata_length);
+        pos += source->subgroups[i].metadata_length;
+    }
+}
+
 static int broadcast_audio_scan_service_write_callback(hci_con_handle_t con_handle, uint16_t attribute_handle, uint16_t transaction_mode, uint16_t offset, uint8_t *buffer, uint16_t buffer_size){
     UNUSED(transaction_mode);
     UNUSED(offset);
@@ -259,6 +414,7 @@ static int broadcast_audio_scan_service_write_callback(hci_con_handle_t con_hand
         }
 
         bass_opcode_t opcode = (bass_opcode_t)buffer[0];
+        
         switch (opcode){
             case BASS_OPCODE_REMOTE_SCAN_STOPPED:
                 bass_emit_remote_scan_stoped();
@@ -269,6 +425,10 @@ static int broadcast_audio_scan_service_write_callback(hci_con_handle_t con_hand
                 break;
 
             case BASS_OPCODE_ADD_SOURCE:
+                if (bass_source_accept(buffer, buffer_size)){
+                    bass_source_t * source = bass_find_empty_or_least_used_source();
+                    bass_add_source(source, buffer, buffer_size);
+                }
                 break;
 
             case BASS_OPCODE_MODIFY_SOURCE:
@@ -340,7 +500,7 @@ void broadcast_audio_scan_service_server_init(uint8_t sources_num, bass_source_t
         bass_source_t * source = &sources[bass_sources_num];
         source->source_id = bass_get_next_source_id();
         source->update_counter = bass_get_next_update_counter();
-        
+
         btstack_linked_list_add(&bass_sources, (btstack_linked_item_t *)source);
         start_handle = chr_client_configuration_handle + 1;
         bass_sources_num++;
@@ -361,4 +521,26 @@ void broadcast_audio_scan_service_server_register_packet_handler(btstack_packet_
     btstack_assert(callback != NULL);
     bass_event_callback = callback;
 }
+
+
+void broadcast_audio_scan_service_server_set_pa_sync_state(uint8_t source_id, lea_pa_sync_state_t sync_state){
+    btstack_assert(sync_state >= LEA_PA_SYNC_STATE_RFU);
+
+    bass_source_t * source = bass_find_source_for_source_id(source_id);
+    if (!source){
+        return;
+    }
+
+    source->pa_sync_state = sync_state;
+
+    switch (sync_state){
+        case LEA_PA_SYNC_STATE_SYNCINFO_REQUEST:
+            broadcast_audio_scan_service_server_sync_info_request(source);
+            break;
+        default:
+            break;
+    }   
+}
+
+
 
