@@ -3789,7 +3789,7 @@ typedef uint8_t sm_key_t[16];
 #define GATTSERVICE_SUBEVENT_REMOTE_MICS_MUTE                              0x1Au
 
 /**
- * @format 121
+ * @format 1H1
  * @param subevent_code
  * @param con_handle
  * @param state
@@ -3797,7 +3797,7 @@ typedef uint8_t sm_key_t[16];
 #define GATTSERVICE_SUBEVENT_LOCAL_MICS_MUTE                                0x1Bu
 
 /**
- * @format 1211
+ * @format 1H11
  * @param subevent_code
  * @param con_handle
  * @param index
@@ -3806,7 +3806,7 @@ typedef uint8_t sm_key_t[16];
 #define GATTSERVICE_SUBEVENT_AICS_MUTE_MODE                                 0x1Cu
 
 /**
- * @format 1211
+ * @format 1H11
  * @param subevent_code
  * @param con_handle
  * @param index
@@ -3815,7 +3815,7 @@ typedef uint8_t sm_key_t[16];
 #define GATTSERVICE_SUBEVENT_AICS_GAIN_MODE                                 0x1Du
 
 /**
- * @format 1211
+ * @format 1H11
  * @param subevent_code
  * @param con_handle
  * @param index
@@ -3824,7 +3824,7 @@ typedef uint8_t sm_key_t[16];
 #define GATTSERVICE_SUBEVENT_AICS_GAIN_CHANGED                              0x1Eu
 
 /**
- * @format 121JV
+ * @format 1H1JV
  * @param subevent_code
  * @param con_handle
  * @param index
@@ -3834,7 +3834,7 @@ typedef uint8_t sm_key_t[16];
 #define GATTSERVICE_SUBEVENT_AICS_AUDIO_INPUT_DESC_CHANGED                   0x20u
 
 /**
- * @format 1212
+ * @format 1H12
  * @param subevent_code
  * @param con_handle
  * @param index
@@ -3843,7 +3843,7 @@ typedef uint8_t sm_key_t[16];
 #define GATTSERVICE_SUBEVENT_VOCS_VOLUME_OFFSET                              0x21u
 
 /**
- * @format 1214
+ * @format 1H14
  * @param subevent_code
  * @param con_handle
  * @param index
@@ -3852,7 +3852,7 @@ typedef uint8_t sm_key_t[16];
 #define GATTSERVICE_SUBEVENT_VOCS_AUDIO_LOCATION                             0x22u
 
 /**
- * @format 121JV
+ * @format 1H1JV
  * @param subevent_code
  * @param con_handle
  * @param index
@@ -3862,7 +3862,7 @@ typedef uint8_t sm_key_t[16];
 #define GATTSERVICE_SUBEVENT_VOCS_AUDIO_OUTPUT_DESC_CHANGED                   0x23u
 
 /**
- * @format 12111
+ * @format 1H111
  * @param subevent_code
  * @param con_handle
  * @param volume_setting
@@ -3872,7 +3872,7 @@ typedef uint8_t sm_key_t[16];
 #define GATTSERVICE_SUBEVENT_VCS_VOLUME_STATE                                 0x24u
 
 /**
- * @format 121
+ * @format 1H1
  * @param subevent_code
  * @param con_handle
  * @param flags
@@ -3880,19 +3880,32 @@ typedef uint8_t sm_key_t[16];
 #define GATTSERVICE_SUBEVENT_VCS_VOLUME_FLAGS                                 0x25u
 
 /**
- * @format 12
+ * @format 1H
  * @param subevent_code
  * @param con_handle
 */
 #define GATTSERVICE_SUBEVENT_BASS_REMOTE_SCAN_STOPED                           0x26u
 
 /**
- * @format 12
+ * @format 1H
  * @param subevent_code
  * @param con_handle
 */
 #define GATTSERVICE_SUBEVENT_BASS_REMOTE_SCAN_STARTED                          0x27u
 
+/*
+ * @format 1211B1312  
+ * @param subevent_code
+ * @param con_handle
+ * @param source_id
+ * @param advertiser_address_type
+ * @param advertiser_address
+ * @param advertising_sid
+ * @param broadcast_id
+ * @param pa_sync_state
+ * @param pa_interval
+ */
+#define GATTSERVICE_SUBEVENT_BASS_PA_SYNC_STATE                                0x28u
 
 // MAP Meta Event Group
 
