@@ -62,12 +62,12 @@ TEST(BROADCAST_AUDIO_SCAN_SERVICE_SERVER, lookup_attribute_handles){
     }
 }
 
-TEST(BROADCAST_AUDIO_SCAN_SERVICE_SERVER, read_callback_client_configuration_handle){
-    uint8_t response[2];
-    uint16_t response_len;
-
+TEST(BROADCAST_AUDIO_SCAN_SERVICE_SERVER, read_receive_state_client_configuration){
+    uint8_t  expected_read_buffer[] = {0, 0};
+    uint8_t  read_buffer[2];
+    
     // invalid attribute handle
-    response_len = mock_att_service_read_callback(con_handle, 0xffff, 0xffff, response, sizeof(response));
+    uint16_t response_len = mock_att_service_read_callback(con_handle, 0xffff, 0xffff, read_buffer, sizeof(read_buffer));
     CHECK_EQUAL(0, response_len);
 
     btstack_linked_list_iterator_t it;    
@@ -75,8 +75,32 @@ TEST(BROADCAST_AUDIO_SCAN_SERVICE_SERVER, read_callback_client_configuration_han
     while (btstack_linked_list_iterator_has_next(&it)){
         bass_source_t * item = (bass_source_t*) btstack_linked_list_iterator_next(&it);
 
-        response_len = mock_att_service_read_callback(con_handle, item->bass_receive_state_client_configuration_handle, 0, response, sizeof(response));
+        response_len = mock_att_service_read_callback(con_handle, item->bass_receive_state_client_configuration_handle, 0, read_buffer, sizeof(read_buffer));
         CHECK_EQUAL(2, response_len);
+        MEMCMP_EQUAL(expected_read_buffer, read_buffer, sizeof(expected_read_buffer));
+    }
+}
+
+TEST(BROADCAST_AUDIO_SCAN_SERVICE_SERVER, write_receive_state_client_configuration){
+    uint8_t  write_buffer[] = {0, 1};
+    uint8_t  expected_read_buffer[] = {0, 1};
+    uint8_t  read_buffer[2];
+    
+    // invalid attribute handle
+    uint16_t response_len = mock_att_service_read_callback(con_handle, 0xffff, 0xffff, read_buffer, sizeof(read_buffer));
+    CHECK_EQUAL(0, response_len);
+
+    btstack_linked_list_iterator_t it;    
+    btstack_linked_list_iterator_init(&it, bass_sources);
+    while (btstack_linked_list_iterator_has_next(&it)){
+        bass_source_t * item = (bass_source_t*) btstack_linked_list_iterator_next(&it);
+
+        int response = mock_att_service_write_callback(con_handle, item->bass_receive_state_client_configuration_handle, ATT_TRANSACTION_MODE_NONE, 0, write_buffer, sizeof(write_buffer));
+        CHECK_EQUAL(0, response); 
+
+        response_len = mock_att_service_read_callback(con_handle, item->bass_receive_state_client_configuration_handle, 0, read_buffer, sizeof(read_buffer));
+        CHECK_EQUAL(2, response_len);
+        MEMCMP_EQUAL(expected_read_buffer, read_buffer, sizeof(expected_read_buffer));
     }
 }
 
