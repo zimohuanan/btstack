@@ -74,7 +74,6 @@ TEST_GROUP(BOND_MANAGEMENT_SERVICE_SERVER){
 
     void validate_write_control_point(uint32_t local_flag, const char * local_auth_str, uint8_t remote_cmd, const char * remote_auth_str, uint16_t expected_outcome){
         bond_management_service_server_init(local_flag);
-        service = mock_att_server_get_service();
         bond_management_service_server_set_authorisation_string(local_auth_str);
 
         request[0] = remote_cmd;
@@ -95,7 +94,6 @@ TEST_GROUP(BOND_MANAGEMENT_SERVICE_SERVER){
 
 TEST(BOND_MANAGEMENT_SERVICE_SERVER, lookup_attribute_handles){
     bond_management_service_server_init(bond_management_features);
-    service = mock_att_server_get_service();
 
     CHECK(bm_features_value_handle != 0);
     CHECK(bm_control_point_value_handle != 0);
@@ -106,8 +104,6 @@ TEST(BOND_MANAGEMENT_SERVICE_SERVER, read_bm_features_value0){
     uint16_t response_len;
 
     bond_management_service_server_init(0x00);
-    service = mock_att_server_get_service();
-
     // invalid attribute handle
     response_len = mock_att_service_read_callback(con_handle, 0xffff, 0xffff, response, sizeof(response));
     CHECK_EQUAL(0, response_len);
@@ -122,7 +118,6 @@ TEST(BOND_MANAGEMENT_SERVICE_SERVER, read_bm_features_value1){
     uint16_t response_len;
 
     bond_management_service_server_init(0xFF);
-    service = mock_att_server_get_service();
 
     response_len = mock_att_service_read_callback(con_handle, bm_features_value_handle, 0, response, sizeof(response));
     CHECK_EQUAL(3, response_len);
@@ -133,7 +128,6 @@ TEST(BOND_MANAGEMENT_SERVICE_SERVER, read_bm_features_value2){
     uint16_t response_len;
 
     bond_management_service_server_init(0xFFFF);
-    service = mock_att_server_get_service();
 
     response_len = mock_att_service_read_callback(con_handle, bm_features_value_handle, 0, response, sizeof(response));
     CHECK_EQUAL(3, response_len);
@@ -145,7 +139,6 @@ TEST(BOND_MANAGEMENT_SERVICE_SERVER, read_bm_features_value3){
 
     // invalid attribute handle
     bond_management_service_server_init(0xFFFFFF);
-    service = mock_att_server_get_service();
 
     response_len = mock_att_service_read_callback(con_handle, bm_features_value_handle, 0, response, sizeof(response));
     CHECK_EQUAL(3, response_len);
@@ -159,7 +152,6 @@ TEST(BOND_MANAGEMENT_SERVICE_SERVER, write_bm_control_point_0){
 
     // invalid attribute handle
     bond_management_service_server_init(0xFFFFFF);
-    service = mock_att_server_get_service();
 
     // wrong handle
     response = mock_att_service_write_callback(con_handle, 0xffff, ATT_TRANSACTION_MODE_NONE, 0, request, request_len);
