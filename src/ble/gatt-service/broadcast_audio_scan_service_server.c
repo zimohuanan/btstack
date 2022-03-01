@@ -502,7 +502,7 @@ void broadcast_audio_scan_service_server_init(uint8_t sources_num, bass_source_t
         source->update_counter = bass_get_next_update_counter();
         
         source->bass_receive_state_handle = chr_value_handle;
-        source->bass_receive_state_handle = chr_client_configuration_handle;
+        source->bass_receive_state_client_configuration_handle = chr_client_configuration_handle;
         source->bass_receive_state_client_configuration = 0;
 
         btstack_linked_list_add(&bass_sources, (btstack_linked_item_t *)source);
