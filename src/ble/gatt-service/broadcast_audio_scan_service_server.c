@@ -132,7 +132,7 @@ static bass_source_t * bass_find_receive_state_for_client_configuration_handle(u
     btstack_linked_list_iterator_init(&it, &bass_sources);
     while (btstack_linked_list_iterator_has_next(&it)){
         bass_source_t * item = (bass_source_t*) btstack_linked_list_iterator_next(&it);
-        if (attribute_handle != item->bass_receive_state_handle) continue;
+        if (attribute_handle != item->bass_receive_state_client_configuration_handle) continue;
         return item;
     }
     return NULL;

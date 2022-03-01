@@ -42,9 +42,7 @@ TEST_GROUP(BROADCAST_AUDIO_SCAN_SERVICE_SERVER){
         bass_sources = broadcast_audio_scan_service_server_get_sources();
         bass_audio_scan_control_point_handle = gatt_server_get_value_handle_for_characteristic_with_uuid16(0, 0xffff, ORG_BLUETOOTH_CHARACTERISTIC_BROADCAST_AUDIO_SCAN_CONTROL_POINT);
 
-        // setup tx power service
         con_handle = 0x00;
-
     }
 
     void teardown(){
@@ -64,6 +62,23 @@ TEST(BROADCAST_AUDIO_SCAN_SERVICE_SERVER, lookup_attribute_handles){
     }
 }
 
+TEST(BROADCAST_AUDIO_SCAN_SERVICE_SERVER, read_callback_client_configuration_handle){
+    uint8_t response[2];
+    uint16_t response_len;
+
+    // invalid attribute handle
+    response_len = mock_att_service_read_callback(con_handle, 0xffff, 0xffff, response, sizeof(response));
+    CHECK_EQUAL(0, response_len);
+
+    btstack_linked_list_iterator_t it;    
+    btstack_linked_list_iterator_init(&it, bass_sources);
+    while (btstack_linked_list_iterator_has_next(&it)){
+        bass_source_t * item = (bass_source_t*) btstack_linked_list_iterator_next(&it);
+
+        response_len = mock_att_service_read_callback(con_handle, item->bass_receive_state_client_configuration_handle, 0, response, sizeof(response));
+        CHECK_EQUAL(2, response_len);
+    }
+}
 
 int main (int argc, const char * argv[]){
     return CommandLineTestRunner::RunAllTests(argc, argv);
