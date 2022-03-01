@@ -224,7 +224,7 @@ static uint16_t bass_virtual_memcpy(
 }
 
 // offset gives position into fully serialized pacs record
-static uint16_t bass_store_source(bass_source_t * source, uint16_t read_offset, uint8_t * buffer, uint16_t buffer_size){
+static uint16_t bass_copy_source(bass_source_t * source, uint16_t read_offset, uint8_t * buffer, uint16_t buffer_size){
     uint8_t  field_data[16];
     uint16_t source_offset = 0;
     uint16_t stored_bytes = 0;
@@ -298,7 +298,7 @@ static uint16_t broadcast_audio_scan_service_read_callback(hci_con_handle_t con_
 
     source = bass_find_receive_state_for_value_handle(attribute_handle);
     if (source){
-        return bass_store_source(source, offset, buffer, buffer_size);
+        return bass_copy_source(source, offset, buffer, buffer_size);
     }
 
     source = bass_find_receive_state_for_client_configuration_handle(attribute_handle);
