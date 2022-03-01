@@ -76,6 +76,7 @@ static uint8_t bass_get_next_source_id(void){
     } else {
         next_source_id = bass_source_counter + 1;
     }
+    bass_source_counter = next_source_id;
     return next_source_id;
 }
 
@@ -86,6 +87,7 @@ static uint8_t bass_get_next_update_counter(void){
     } else {
         next_update_counter = bass_update_counter + 1;
     }
+    bass_update_counter = next_update_counter;
     return next_update_counter;
 }
 
