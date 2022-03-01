@@ -413,7 +413,7 @@ static bool pacs_node_valid(pacs_endpoint_t * node){
 void published_audio_capabilities_service_server_init(pacs_endpoint_t * sink_endpoint, pacs_endpoint_t * source_endpoint){
     // get service handle range
     uint16_t start_handle = 0;
-    uint16_t end_handle   = 0xfff;
+    uint16_t end_handle   = 0xffff;
     int service_found = gatt_server_get_handle_range_for_service_with_uuid16(ORG_BLUETOOTH_SERVICE_PUBLISHED_AUDIO_CAPABILITIES_SERVICE, &start_handle, &end_handle);
     btstack_assert(service_found != 0);
     UNUSED(service_found);
