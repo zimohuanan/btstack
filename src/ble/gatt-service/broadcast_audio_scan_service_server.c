@@ -47,16 +47,6 @@
 
 #include "ble/gatt-service/broadcast_audio_scan_service_server.h"
 
-typedef enum {
-   BASS_OPCODE_REMOTE_SCAN_STOPPED = 0x00,
-   BASS_OPCODE_REMOTE_SCAN_STARTED,
-   BASS_OPCODE_ADD_SOURCE,
-   BASS_OPCODE_MODIFY_SOURCE,
-   BASS_OPCODE_SET_BROADCAST_CODE,
-   BASS_OPCODE_REMOVE_SOURCE, 
-   BASS_OPCODE_RFU
-} bass_opcode_t;
-
 static att_service_handler_t    broadcast_audio_scan_service;
 static hci_con_handle_t         bass_con_handle;
 static btstack_packet_handler_t bass_event_callback;
@@ -415,31 +405,31 @@ static int broadcast_audio_scan_service_write_callback(hci_con_handle_t con_hand
             return BASS_ERROR_CODE_OPCODE_NOT_SUPPORTED;
         }
 
-        bass_opcode_t opcode = (bass_opcode_t)buffer[0];
+        lea_bass_opcode_t opcode = (lea_bass_opcode_t)buffer[0];
         
         switch (opcode){
-            case BASS_OPCODE_REMOTE_SCAN_STOPPED:
+            case LEA_BASS_OPCODE_REMOTE_SCAN_STOPPED:
                 bass_emit_remote_scan_stoped();
                 break;
 
-            case BASS_OPCODE_REMOTE_SCAN_STARTED:
+            case LEA_BASS_OPCODE_REMOTE_SCAN_STARTED:
                 bass_emit_remote_scan_started();
                 break;
 
-            case BASS_OPCODE_ADD_SOURCE:
+            case LEA_BASS_OPCODE_ADD_SOURCE:
                 if (bass_source_accept(buffer, buffer_size)){
                     bass_source_t * source = bass_find_empty_or_least_used_source();
                     bass_add_source(source, buffer, buffer_size);
                 }
                 break;
 
-            case BASS_OPCODE_MODIFY_SOURCE:
+            case LEA_BASS_OPCODE_MODIFY_SOURCE:
                 break;
 
-            case BASS_OPCODE_SET_BROADCAST_CODE:
+            case LEA_BASS_OPCODE_SET_BROADCAST_CODE:
                 break;
 
-            case BASS_OPCODE_REMOVE_SOURCE:
+            case LEA_BASS_OPCODE_REMOVE_SOURCE:
                 break;
 
             default:
