@@ -546,5 +546,6 @@ void broadcast_audio_scan_service_server_set_pa_sync_state(uint8_t source_id, le
     }   
 }
 
-
-
+btstack_linked_list_t * broadcast_audio_scan_service_server_get_sources(void){
+    return &bass_sources;
+}
