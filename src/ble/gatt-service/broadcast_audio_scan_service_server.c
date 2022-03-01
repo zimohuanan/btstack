@@ -480,7 +480,7 @@ static void broadcast_audio_scan_service_packet_handler(uint8_t packet_type, uin
 void broadcast_audio_scan_service_server_init(uint8_t sources_num, bass_source_t * sources){
     // get service handle range
     uint16_t start_handle = 0;
-    uint16_t end_handle   = 0xfff;
+    uint16_t end_handle   = 0xffff;
     int service_found = gatt_server_get_handle_range_for_service_with_uuid16(ORG_BLUETOOTH_SERVICE_BROADCAST_AUDIO_SCAN_SERVICE, &start_handle, &end_handle);
     btstack_assert(service_found != 0);
     UNUSED(service_found);
@@ -500,6 +500,10 @@ void broadcast_audio_scan_service_server_init(uint8_t sources_num, bass_source_t
         bass_source_t * source = &sources[bass_sources_num];
         source->source_id = bass_get_next_source_id();
         source->update_counter = bass_get_next_update_counter();
+        
+        source->bass_receive_state_handle = chr_value_handle;
+        source->bass_receive_state_handle = chr_client_configuration_handle;
+        source->bass_receive_state_client_configuration = 0;
 
         btstack_linked_list_add(&bass_sources, (btstack_linked_item_t *)source);
         start_handle = chr_client_configuration_handle + 1;
