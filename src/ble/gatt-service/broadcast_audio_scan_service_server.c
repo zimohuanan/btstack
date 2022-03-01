@@ -401,7 +401,7 @@ static int broadcast_audio_scan_service_write_callback(hci_con_handle_t con_hand
     UNUSED(offset);
     
     if (attribute_handle == bass_audio_scan_control_point_handle){
-        if (buffer_size != 1){
+        if (buffer_size < 1){
             return BASS_ERROR_CODE_OPCODE_NOT_SUPPORTED;
         }
 
