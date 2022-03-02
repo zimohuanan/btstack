@@ -141,13 +141,13 @@ static bass_source_t * bass_find_source_for_source_id(uint8_t source_id){
     return NULL;
 }
 
-static void broadcast_audio_scan_service_server_reset_values(void){
+static void bass_server_reset_values(void){
     bass_con_handle = HCI_CON_HANDLE_INVALID;
     btstack_linked_list_iterator_t it;    
     btstack_linked_list_iterator_init(&it, &bass_sources);
     while (btstack_linked_list_iterator_has_next(&it)){
         bass_source_t * item = (bass_source_t*) btstack_linked_list_iterator_next(&it);
-        item->bass_receive_state_client_configuration = 0;
+        memset(item, 0, sizeof(bass_source_t));
     }
 }
 
@@ -300,6 +300,8 @@ static uint16_t broadcast_audio_scan_service_read_callback(hci_con_handle_t con_
 }
 
 static bool bass_source_accept(uint8_t *buffer, uint16_t buffer_size){
+
+static bool bass_remote_add_source_buffer_valid(uint8_t *buffer, uint16_t buffer_size){
     uint8_t pos = 0;
     // addr type
     uint8_t adv_type = buffer[pos++];
@@ -307,45 +309,52 @@ static bool bass_source_accept(uint8_t *buffer, uint16_t buffer_size){
         log_info("Unexpected adv_type 0x%02X", adv_type);
         return false;
     }
+
     // address
     pos += 6;
+
     // advertising_sid Range: 0x00-0x0F
     uint8_t advertising_sid = buffer[pos++];
     if (advertising_sid > 0x0F){
         log_info("Advertising sid out of range 0x%02X", advertising_sid);
         return false;
     }
+
     // broadcast_id
     pos += 3;
+
     // pa_sync_state
     uint8_t pa_sync = buffer[pos++];
     if (pa_sync >= (uint8_t)LEA_PA_SYNC_RFU){
         log_info("Unexpected pa_sync 0x%02X", pa_sync);
         return false;
     }
+
     // pa_interval
     pos += 2;
-
     uint8_t num_subgroups = buffer[pos++];
     if (num_subgroups > BASS_SUBGROUPS_MAX_NUM){
         log_info("Number of subgroups %u exceedes maximum %u", num_subgroups, BASS_SUBGROUPS_MAX_NUM);
         return false;
     }
-    
+
     uint8_t i;
     for (i = 0; i < num_subgroups; i++){
         // bis_sync
         pos += 4;
-        // metadata_length
-        uint8_t metadata_length = buffer[pos];
-        pos += 1;
         
+        // check if we can read metadata_length
+        if (pos >= buffer_size){
+            return false;
+        }
+        
+        uint8_t metadata_length = buffer[pos++];
         if (metadata_length > BASS_METADATA_MAX_LENGTH){
             log_info("Metadata length %u exceedes maximum %u", metadata_length, BASS_METADATA_MAX_LENGTH);
             return false;
         }    
         // metadata
-        pos += buffer[pos];
+        pos += metadata_length;
     }
     return (pos == buffer_size);
 }
@@ -361,7 +370,14 @@ static void bass_add_source(bass_source_t * source, uint8_t *buffer, uint16_t bu
     UNUSED(buffer_size);
 
     uint8_t pos = 0;
+
+    source->address_type = (bd_addr_type_t)buffer[pos++];
+    
+    reverse_bd_addr(&buffer[pos], source->address);
+    pos += 6;
+
     source->adv_sid = buffer[pos++];
+
     source->broadcast_id = little_endian_read_24(buffer, pos);
     pos += 3;
 
@@ -382,6 +398,7 @@ static void bass_add_source(bass_source_t * source, uint8_t *buffer, uint16_t bu
     
     source->pa_interval = little_endian_read_16(buffer, pos);
     pos += 2;
+
     source->subgroups_num = buffer[pos++];
 
     uint8_t i;
@@ -417,9 +434,13 @@ static int broadcast_audio_scan_service_write_callback(hci_con_handle_t con_hand
                 break;
 
             case LEA_BASS_OPCODE_ADD_SOURCE:
-                if (bass_source_accept(buffer, buffer_size)){
+                if (buffer_size < 16){ // 15 min for source, 1 for opcode
+                    break;
+                }
+
+                if (bass_remote_add_source_buffer_valid(buffer + 1, buffer_size - 1)){
                     bass_source_t * source = bass_find_empty_or_least_used_source();
-                    bass_add_source(source, buffer, buffer_size);
+                    bass_add_source(source, buffer + 1, buffer_size - 1);
                 }
                 break;
 
@@ -460,8 +481,9 @@ static void broadcast_audio_scan_service_packet_handler(uint8_t packet_type, uin
     switch (hci_event_packet_get_type(packet)) {
         case HCI_EVENT_DISCONNECTION_COMPLETE:
             con_handle = hci_event_disconnection_complete_get_connection_handle(packet);
+            bass_sources_num = 0;
             if (bass_con_handle == con_handle){
-                broadcast_audio_scan_service_server_reset_values();
+                bass_server_reset_values();
             }
             break;
         default:
@@ -477,9 +499,10 @@ void broadcast_audio_scan_service_server_init(uint8_t sources_num, bass_source_t
     btstack_assert(service_found != 0);
     UNUSED(service_found);
 
-    broadcast_audio_scan_service_server_reset_values();
-
     bass_audio_scan_control_point_handle = gatt_server_get_value_handle_for_characteristic_with_uuid16(start_handle, end_handle, ORG_BLUETOOTH_CHARACTERISTIC_BROADCAST_AUDIO_SCAN_CONTROL_POINT);
+    bass_sources_num = 0;
+    bass_source_counter = 0;
+    bass_update_counter = 0;
 
     while ( (start_handle < end_handle) && (bass_sources_num < sources_num)) {
         uint16_t chr_value_handle = gatt_server_get_value_handle_for_characteristic_with_uuid16(start_handle, end_handle, ORG_BLUETOOTH_CHARACTERISTIC_BROADCAST_RECEIVE_STATE);
@@ -490,6 +513,8 @@ void broadcast_audio_scan_service_server_init(uint8_t sources_num, bass_source_t
             break;
         }
         bass_source_t * source = &sources[bass_sources_num];
+        memset(source, 0, sizeof(bass_source_t));
+
         source->source_id = bass_get_next_source_id();
         source->update_counter = bass_get_next_update_counter();
         
