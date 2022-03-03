@@ -31,7 +31,7 @@
 static bass_source_t sources[2];
 
 static uint8_t expected_scan_active = 0;
-static uint8_t expected_event = 0;
+static uint8_t received_event = 0;
 
 TEST_GROUP(BROADCAST_AUDIO_SCAN_SERVICE_SERVER){ 
     att_service_handler_t * service; 
@@ -148,25 +148,26 @@ static void packet_handler(uint8_t packet_type, uint16_t channel, uint8_t *packe
     if (packet[0] != HCI_EVENT_GATTSERVICE_META){
         return;
     }
+    received_event = 0;
 
     switch (packet[2]){
     
         case GATTSERVICE_SUBEVENT_BASS_REMOTE_SCAN_STOPED:
             CHECK_EQUAL(expected_scan_active, 0); 
-            expected_event = GATTSERVICE_SUBEVENT_BASS_REMOTE_SCAN_STOPED;
+            received_event = GATTSERVICE_SUBEVENT_BASS_REMOTE_SCAN_STOPED;
             break;
         
         case GATTSERVICE_SUBEVENT_BASS_REMOTE_SCAN_STARTED:
             CHECK_EQUAL(expected_scan_active, 1); 
-            expected_event = GATTSERVICE_SUBEVENT_BASS_REMOTE_SCAN_STARTED;
+            received_event = GATTSERVICE_SUBEVENT_BASS_REMOTE_SCAN_STARTED;
             break;
 
         case GATTSERVICE_SUBEVENT_BASS_PA_SYNC_STATE:
-            expected_event = GATTSERVICE_SUBEVENT_BASS_PA_SYNC_STATE;
+            received_event = GATTSERVICE_SUBEVENT_BASS_PA_SYNC_STATE;
             break;
 
         default:
-            expected_event = BASS_UNDEFINED_EVENT;
+            received_event = BASS_UNDEFINED_EVENT;
             break;
     }
 
@@ -200,26 +201,27 @@ TEST(BROADCAST_AUDIO_SCAN_SERVICE_SERVER, write_control_point_scan){
     expected_scan_active = 0;
     response = mock_att_service_write_callback(con_handle, bass_audio_scan_control_point_handle, ATT_TRANSACTION_MODE_NONE, 0, write_buffer, sizeof(write_buffer));
     CHECK_EQUAL(0, response); 
-    CHECK_EQUAL(expected_event, GATTSERVICE_SUBEVENT_BASS_REMOTE_SCAN_STOPED); 
+    CHECK_EQUAL(GATTSERVICE_SUBEVENT_BASS_REMOTE_SCAN_STOPED, received_event); 
 
     write_buffer[0] = (uint8_t)LEA_BASS_OPCODE_REMOTE_SCAN_STARTED;
     expected_scan_active = 1;
     response = mock_att_service_write_callback(con_handle, bass_audio_scan_control_point_handle, ATT_TRANSACTION_MODE_NONE, 0, write_buffer, sizeof(write_buffer));
     CHECK_EQUAL(0, response); 
-    CHECK_EQUAL(expected_event, GATTSERVICE_SUBEVENT_BASS_REMOTE_SCAN_STARTED); 
+    CHECK_EQUAL(GATTSERVICE_SUBEVENT_BASS_REMOTE_SCAN_STARTED, received_event); 
 }
 
 
 TEST(BROADCAST_AUDIO_SCAN_SERVICE_SERVER, write_control_point_add_source){
-    uint8_t write_buffer[30];
+    uint8_t write_buffer[80];
     int response;
     bd_addr_t remote_addr = {0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF};
     uint32_t broadcast_id = 0xB1B2B3;
     uint16_t pa_interval = 0xCCDD;
-    
+    uint32_t bis_sync_state = 0xFFFFFFFF;
+
     broadcast_audio_scan_service_server_init(BASS_NUM_SOURCES, sources);
-    expected_event = 0;
-    
+    received_event = 0;
+
     memset(write_buffer, 0, sizeof(write_buffer));
     
     broadcast_audio_scan_service_server_register_packet_handler(&packet_handler);
@@ -230,14 +232,14 @@ TEST(BROADCAST_AUDIO_SCAN_SERVICE_SERVER, write_control_point_add_source){
     // no event is emitted
     response = mock_att_service_write_callback(con_handle, bass_audio_scan_control_point_handle, ATT_TRANSACTION_MODE_NONE, 0, write_buffer, 10);
     CHECK_EQUAL(0, response); 
-    CHECK_EQUAL(expected_event, 0);
+    CHECK_EQUAL(0, received_event);
     
     // wrong Advertiser_Address_Type
     write_buffer[1] = 0x03;
     // no event is emitted
     response = mock_att_service_write_callback(con_handle, bass_audio_scan_control_point_handle, ATT_TRANSACTION_MODE_NONE, 0, write_buffer, sizeof(write_buffer));
     CHECK_EQUAL(0, response); 
-    CHECK_EQUAL(expected_event, 0);
+    CHECK_EQUAL(0, received_event);
 
     // Advertiser_Address_Type = Public Device Address 
     write_buffer[1] = 0x00;
@@ -246,7 +248,7 @@ TEST(BROADCAST_AUDIO_SCAN_SERVICE_SERVER, write_control_point_add_source){
     write_buffer[8] = 0xFF;
     response = mock_att_service_write_callback(con_handle, bass_audio_scan_control_point_handle, ATT_TRANSACTION_MODE_NONE, 0, write_buffer, sizeof(write_buffer));
     CHECK_EQUAL(0, response); 
-    CHECK_EQUAL(expected_event, 0);
+    CHECK_EQUAL(0, received_event);
 
     // advertising_sid Range: 0x01
     write_buffer[8] = 0x01;
@@ -257,7 +259,7 @@ TEST(BROADCAST_AUDIO_SCAN_SERVICE_SERVER, write_control_point_add_source){
     write_buffer[12] = (uint8_t)LEA_PA_SYNC_RFU;
     response = mock_att_service_write_callback(con_handle, bass_audio_scan_control_point_handle, ATT_TRANSACTION_MODE_NONE, 0, write_buffer, sizeof(write_buffer));
     CHECK_EQUAL(0, response); 
-    CHECK_EQUAL(expected_event, 0);
+    CHECK_EQUAL(0, received_event);
 
     // pa_sync_state LEA_PA_SYNC_SYNCHRONIZE_TO_PA_PAST_AVAILABLE
     write_buffer[12] = (uint8_t)LEA_PA_SYNC_SYNCHRONIZE_TO_PA_PAST_AVAILABLE;
@@ -266,15 +268,63 @@ TEST(BROADCAST_AUDIO_SCAN_SERVICE_SERVER, write_control_point_add_source){
 
     // num_subgroups excidees BASS_SUBGROUPS_MAX_NUM
     write_buffer[15] = BASS_SUBGROUPS_MAX_NUM + 1;
-    expected_event = 0;
     response = mock_att_service_write_callback(con_handle, bass_audio_scan_control_point_handle, ATT_TRANSACTION_MODE_NONE, 0, write_buffer, sizeof(write_buffer));
     CHECK_EQUAL(0, response); 
-    CHECK_EQUAL(expected_event, 0);
+    CHECK_EQUAL(0, received_event);
 
     write_buffer[15] = 0;
     response = mock_att_service_write_callback(con_handle, bass_audio_scan_control_point_handle, ATT_TRANSACTION_MODE_NONE, 0, write_buffer, 16);
     CHECK_EQUAL(0, response); 
-    CHECK_EQUAL(expected_event, GATTSERVICE_SUBEVENT_BASS_PA_SYNC_STATE); 
+    CHECK_EQUAL(GATTSERVICE_SUBEVENT_BASS_PA_SYNC_STATE, received_event); 
+    received_event = 0;
+
+    // num_subgroups valid, no metadata_length
+    write_buffer[15] = 1;
+    little_endian_store_32(write_buffer, 16, bis_sync_state);
+    response = mock_att_service_write_callback(con_handle, bass_audio_scan_control_point_handle, ATT_TRANSACTION_MODE_NONE, 0, write_buffer, 20);
+    CHECK_EQUAL(0, response); 
+    CHECK_EQUAL(0, received_event);
+
+    // num_subgroups valid, metadata_length exceeds BASS_METADATA_MAX_LENGTH
+    write_buffer[20] = BASS_METADATA_MAX_LENGTH + 1;
+    response = mock_att_service_write_callback(con_handle, bass_audio_scan_control_point_handle, ATT_TRANSACTION_MODE_NONE, 0, write_buffer, 22);
+    CHECK_EQUAL(0, response); 
+    CHECK_EQUAL(0, received_event);
+
+    // num_subgroups valid, metadata_length exceeds BASS_METADATA_MAX_LENGTH
+    write_buffer[20] = BASS_METADATA_MAX_LENGTH + 1;
+    response = mock_att_service_write_callback(con_handle, bass_audio_scan_control_point_handle, ATT_TRANSACTION_MODE_NONE, 0, write_buffer, 22);
+    CHECK_EQUAL(0, response); 
+    CHECK_EQUAL(0, received_event);
+
+    // num_subgroups valid, metadata_length valid, metadata nod complete
+    write_buffer[20] = 10;
+    response = mock_att_service_write_callback(con_handle, bass_audio_scan_control_point_handle, ATT_TRANSACTION_MODE_NONE, 0, write_buffer, 28);
+    CHECK_EQUAL(0, response); 
+    CHECK_EQUAL(0, received_event);
+ 
+    // valid source with subgroup and metadata
+    write_buffer[20] = 10;
+    response = mock_att_service_write_callback(con_handle, bass_audio_scan_control_point_handle, ATT_TRANSACTION_MODE_NONE, 0, write_buffer, 31);
+    CHECK_EQUAL(0, response); 
+    CHECK_EQUAL(GATTSERVICE_SUBEVENT_BASS_PA_SYNC_STATE, received_event); 
+    received_event = 0;
+
+
+    // write two subgroups
+    write_buffer[15] = 2;
+    little_endian_store_32(write_buffer, 16, bis_sync_state);
+    write_buffer[20] = 10;
+    memset(&write_buffer[21], 0xAA, 10);
+
+    little_endian_store_32(write_buffer, 31, bis_sync_state);
+    write_buffer[35] = 4;
+    memset(&write_buffer[36], 0xBB, 4);
+    
+    response = mock_att_service_write_callback(con_handle, bass_audio_scan_control_point_handle, ATT_TRANSACTION_MODE_NONE, 0, write_buffer, 40);
+    CHECK_EQUAL(0, response); 
+    CHECK_EQUAL(GATTSERVICE_SUBEVENT_BASS_PA_SYNC_STATE, received_event);  
+    received_event = 0;
 }
 
 TEST(BROADCAST_AUDIO_SCAN_SERVICE_SERVER, write_control_point_modify_source){
