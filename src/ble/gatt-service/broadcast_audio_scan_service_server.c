@@ -223,6 +223,21 @@ static void bass_emit_broadcast_code(uint8_t * buffer){
 
     (*bass_event_callback)(HCI_EVENT_PACKET, 0, event, sizeof(event));
 }
+
+static void bass_emit_source_deleted(uint8_t source_id){
+    btstack_assert(bass_event_callback != NULL);
+    
+    uint8_t event[6];
+    uint8_t pos = 0;
+    event[pos++] = HCI_EVENT_GATTSERVICE_META;
+    event[pos++] = sizeof(event) - 2;
+    event[pos++] = GATTSERVICE_SUBEVENT_BASS_SOURCE_REMOVED;
+    little_endian_store_16(event, pos, bass_con_handle);
+    pos += 2;
+    event[pos++] = source_id;
+    (*bass_event_callback)(HCI_EVENT_PACKET, 0, event, sizeof(event));
+}
+
 // help with buffer == NULL
 static uint16_t bass_virtual_memcpy(
     const uint8_t * field_data, uint16_t field_len, uint16_t field_offset,
@@ -473,6 +488,20 @@ static void bass_modify_source(uint8_t *buffer, uint16_t buffer_size){
     bass_add_pa_info_and_subgroups(source, buffer+pos, buffer_size-pos);
 }
 
+static bool bass_pa_synchronized(bass_source_t * source){
+    return source->pa_sync_state == LEA_PA_SYNC_STATE_SYNCHRONIZED_TO_PA;
+}
+
+static bool bass_bis_synchronized(bass_source_t * source){
+    uint8_t i;
+    for (i = 0; i < source->subgroups_num; i++){
+        if ((source->subgroups[i].bis_sync_state > 0) && (source->subgroups[i].bis_sync_state < 0xFFFFFFFF)){
+            return true;
+        }
+    }
+    return false;
+}
+
 static int broadcast_audio_scan_service_write_callback(hci_con_handle_t con_handle, uint16_t attribute_handle, uint16_t transaction_mode, uint16_t offset, uint8_t *buffer, uint16_t buffer_size){
     UNUSED(transaction_mode);
     UNUSED(offset);
@@ -485,6 +514,9 @@ static int broadcast_audio_scan_service_write_callback(hci_con_handle_t con_hand
         lea_bass_opcode_t opcode = (lea_bass_opcode_t)buffer[0];
         uint8_t  *remote_data = &buffer[1];
         uint16_t remote_data_size = buffer_size - 1;
+        
+        uint8_t  source_id;
+        bass_source_t * source;
 
         switch (opcode){
             case LEA_BASS_OPCODE_REMOTE_SCAN_STOPPED:
@@ -515,6 +547,19 @@ static int broadcast_audio_scan_service_write_callback(hci_con_handle_t con_hand
                 break;
 
             case LEA_BASS_OPCODE_REMOVE_SOURCE:
+                if (remote_data_size < 1){
+                    break;
+                }
+                source_id = remote_data[0];
+                source = bass_find_source_for_source_id(source_id);
+                if (source == NULL){
+                    break;
+                }
+                if (bass_pa_synchronized(source) || bass_bis_synchronized(source)){
+                    break;
+                }
+                memset(source, 0, sizeof(bass_source_t));
+                bass_emit_source_deleted(source_id);
                 break;
 
             default:
