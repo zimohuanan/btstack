@@ -37,21 +37,21 @@ TEST_GROUP(BROADCAST_AUDIO_SCAN_SERVICE_SERVER){
     att_service_handler_t * service; 
     uint16_t con_handle;
     uint16_t bass_audio_scan_control_point_handle;
-    btstack_linked_list_t * bass_sources;
 
     void setup(void){
         // setup database
         att_set_db(profile_data);
-        bass_sources = broadcast_audio_scan_service_server_get_sources();
         bass_audio_scan_control_point_handle = gatt_server_get_value_handle_for_characteristic_with_uuid16(0, 0xffff, ORG_BLUETOOTH_CHARACTERISTIC_BROADCAST_AUDIO_SCAN_CONTROL_POINT);
 
         // con_handle = 0x00;
     }
 
     void teardown(){
+        broadcast_audio_scan_service_server_deinit();
         mock_deinit();
     }
 };
+
 
 TEST(BROADCAST_AUDIO_SCAN_SERVICE_SERVER, lookup_attribute_handles){
     CHECK(bass_audio_scan_control_point_handle != 0);
@@ -60,6 +60,8 @@ TEST(BROADCAST_AUDIO_SCAN_SERVICE_SERVER, lookup_attribute_handles){
     uint16_t sources_num = 0;
     
     broadcast_audio_scan_service_server_init(BASS_NUM_SOURCES, sources);
+
+    btstack_linked_list_t * bass_sources = broadcast_audio_scan_service_server_get_sources();
 
     btstack_linked_list_iterator_t it;    
     btstack_linked_list_iterator_init(&it, bass_sources);
@@ -76,7 +78,11 @@ TEST(BROADCAST_AUDIO_SCAN_SERVICE_SERVER, read_receive_state_client_configuratio
     uint8_t  expected_read_buffer[] = {0, 0};
     uint8_t  read_buffer[2];
     
+    uint16_t expected_sources_num = 2;
+    uint16_t sources_num = 0;
+
     broadcast_audio_scan_service_server_init(BASS_NUM_SOURCES, sources);
+    btstack_linked_list_t * bass_sources = broadcast_audio_scan_service_server_get_sources();
 
     // invalid attribute handle
     uint16_t response_len = mock_att_service_read_callback(con_handle, 0xffff, 0xffff, read_buffer, sizeof(read_buffer));
@@ -86,11 +92,12 @@ TEST(BROADCAST_AUDIO_SCAN_SERVICE_SERVER, read_receive_state_client_configuratio
     btstack_linked_list_iterator_init(&it, bass_sources);
     while (btstack_linked_list_iterator_has_next(&it)){
         bass_source_t * item = (bass_source_t*) btstack_linked_list_iterator_next(&it);
-
         response_len = mock_att_service_read_callback(con_handle, item->bass_receive_state_client_configuration_handle, 0, read_buffer, sizeof(read_buffer));
         CHECK_EQUAL(2, response_len);
         MEMCMP_EQUAL(expected_read_buffer, read_buffer, sizeof(expected_read_buffer));
+        sources_num++;
     }
+    CHECK_EQUAL(expected_sources_num, sources_num);
 }
 
 TEST(BROADCAST_AUDIO_SCAN_SERVICE_SERVER, write_receive_state_client_configuration){
@@ -99,6 +106,7 @@ TEST(BROADCAST_AUDIO_SCAN_SERVICE_SERVER, write_receive_state_client_configurati
     uint8_t  read_buffer[2];
     
     broadcast_audio_scan_service_server_init(BASS_NUM_SOURCES, sources);
+    btstack_linked_list_t * bass_sources = broadcast_audio_scan_service_server_get_sources();
 
     // invalid attribute handle
     uint16_t response_len = mock_att_service_read_callback(con_handle, 0xffff, 0xffff, read_buffer, sizeof(read_buffer));
@@ -125,6 +133,7 @@ TEST(BROADCAST_AUDIO_SCAN_SERVICE_SERVER, read_receive_state_source_id){
     memset(read_buffer, 0, sizeof(read_buffer));
 
     broadcast_audio_scan_service_server_init(BASS_NUM_SOURCES, sources);
+    btstack_linked_list_t * bass_sources = broadcast_audio_scan_service_server_get_sources();
 
     btstack_linked_list_iterator_t it;    
     btstack_linked_list_iterator_init(&it, bass_sources);
@@ -164,6 +173,10 @@ static void packet_handler(uint8_t packet_type, uint16_t channel, uint8_t *packe
 
         case GATTSERVICE_SUBEVENT_BASS_PA_SYNC_STATE:
             received_event = GATTSERVICE_SUBEVENT_BASS_PA_SYNC_STATE;
+            break;
+
+        case GATTSERVICE_SUBEVENT_BASS_BROADCAST_CODE:
+            received_event = GATTSERVICE_SUBEVENT_BASS_BROADCAST_CODE;
             break;
 
         default:
@@ -212,7 +225,7 @@ TEST(BROADCAST_AUDIO_SCAN_SERVICE_SERVER, write_control_point_scan){
 
 
 TEST(BROADCAST_AUDIO_SCAN_SERVICE_SERVER, write_control_point_add_source){
-    uint8_t write_buffer[80];
+    uint8_t write_buffer[50];
     int response;
     bd_addr_t remote_addr = {0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF};
     uint32_t broadcast_id = 0xB1B2B3;
@@ -327,15 +340,30 @@ TEST(BROADCAST_AUDIO_SCAN_SERVICE_SERVER, write_control_point_add_source){
     received_event = 0;
 }
 
+TEST(BROADCAST_AUDIO_SCAN_SERVICE_SERVER, write_control_point_set_broadcast_code){
+    uint8_t write_buffer[18];
+    int response;
+
+    broadcast_audio_scan_service_server_init(BASS_NUM_SOURCES, sources);
+
+    received_event = 0;
+    memset(write_buffer, 0xAA, sizeof(write_buffer));
+    broadcast_audio_scan_service_server_register_packet_handler(&packet_handler);
+
+    write_buffer[0] = (uint8_t)LEA_BASS_OPCODE_SET_BROADCAST_CODE;
+    write_buffer[1] = 1; // source_id
+
+    response = mock_att_service_write_callback(con_handle, bass_audio_scan_control_point_handle, ATT_TRANSACTION_MODE_NONE, 0, write_buffer, sizeof(write_buffer));
+    CHECK_EQUAL(0, response); 
+    CHECK_EQUAL(GATTSERVICE_SUBEVENT_BASS_BROADCAST_CODE, received_event);
+}
+
+
 TEST(BROADCAST_AUDIO_SCAN_SERVICE_SERVER, write_control_point_modify_source){
     // write_buffer[0] = (uint8_t)LEA_BASS_OPCODE_MODIFY_SOURCE;
 }
 
 TEST(BROADCAST_AUDIO_SCAN_SERVICE_SERVER, write_control_point_remove_source){
-    // write_buffer[0] = (uint8_t)LEA_BASS_OPCODE_SET_BROADCAST_CODE;
-}
-
-TEST(BROADCAST_AUDIO_SCAN_SERVICE_SERVER, write_control_point_set_broadcast_code){
     // write_buffer[0] = (uint8_t)LEA_BASS_OPCODE_SET_BROADCAST_CODE;
 }
 
