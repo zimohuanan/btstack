@@ -299,9 +299,52 @@ static uint16_t broadcast_audio_scan_service_read_callback(hci_con_handle_t con_
     return 0;
 }
 
-static bool bass_source_accept(uint8_t *buffer, uint16_t buffer_size){
+static bool bass_pa_info_and_subgroups_valid(uint8_t *buffer, uint16_t buffer_size){
+    uint8_t pos = 0;
+    // pa_sync_state
+    uint8_t pa_sync = buffer[pos++];
+    if (pa_sync >= (uint8_t)LEA_PA_SYNC_RFU){
+        log_info("Unexpected pa_sync 0x%02X", pa_sync);
+        return false;
+    }
+
+    // pa_interval
+    pos += 2;
+    uint8_t num_subgroups = buffer[pos++];
+    if (num_subgroups > BASS_SUBGROUPS_MAX_NUM){
+        log_info("Number of subgroups %u exceedes maximum %u", num_subgroups, BASS_SUBGROUPS_MAX_NUM);
+        return false;
+    }
+
+    // printf("Number of subgroups %u, buffer size %u, pos %u\n", num_subgroups, buffer_size, pos);
+    uint8_t i;
+    for (i = 0; i < num_subgroups; i++){
+        // bis_sync
+        pos += 4;
+        
+        // check if we can read metadata_length
+        if (pos >= buffer_size){
+            log_info("Metadata length not specified, subgroup %u", i);
+            return false;
+        }
+        
+        uint8_t metadata_length = buffer[pos++];
+        if (metadata_length > BASS_METADATA_MAX_LENGTH){
+            log_info("Metadata length %u exceedes maximum %u", metadata_length, BASS_METADATA_MAX_LENGTH);
+            return false;
+        }    
+        // metadata
+        pos += metadata_length;
+    }
+    return (pos == buffer_size);
+}
 
 static bool bass_remote_add_source_buffer_valid(uint8_t *buffer, uint16_t buffer_size){
+    if (buffer_size < 15){ 
+        log_info("Add Source opcode, buffer too small");
+        return false;
+    }
+
     uint8_t pos = 0;
     // addr type
     uint8_t adv_type = buffer[pos++];
@@ -322,43 +365,18 @@ static bool bass_remote_add_source_buffer_valid(uint8_t *buffer, uint16_t buffer
 
     // broadcast_id
     pos += 3;
-
-    // pa_sync_state
-    uint8_t pa_sync = buffer[pos++];
-    if (pa_sync >= (uint8_t)LEA_PA_SYNC_RFU){
-        log_info("Unexpected pa_sync 0x%02X", pa_sync);
-        return false;
-    }
-
-    // pa_interval
-    pos += 2;
-    uint8_t num_subgroups = buffer[pos++];
-    if (num_subgroups > BASS_SUBGROUPS_MAX_NUM){
-        log_info("Number of subgroups %u exceedes maximum %u", num_subgroups, BASS_SUBGROUPS_MAX_NUM);
-        return false;
-    }
-
-    uint8_t i;
-    for (i = 0; i < num_subgroups; i++){
-        // bis_sync
-        pos += 4;
-        
-        // check if we can read metadata_length
-        if (pos >= buffer_size){
-            return false;
-        }
-        
-        uint8_t metadata_length = buffer[pos++];
-        if (metadata_length > BASS_METADATA_MAX_LENGTH){
-            log_info("Metadata length %u exceedes maximum %u", metadata_length, BASS_METADATA_MAX_LENGTH);
-            return false;
-        }    
-        // metadata
-        pos += metadata_length;
-    }
-    return (pos == buffer_size);
+    return bass_pa_info_and_subgroups_valid(buffer+pos, buffer_size-pos);
 }
 
+static bool bass_remote_modify_source_buffer_valid(uint8_t *buffer, uint16_t buffer_size){
+    if (buffer_size < 10){ 
+        log_info("Modify Source opcode, buffer too small");
+        return false;
+    }
+    
+    uint8_t pos = 1; // source_id
+    return bass_pa_info_and_subgroups_valid(buffer+pos, buffer_size-pos);
+}
 
 static void broadcast_audio_scan_service_server_sync_info_request(bass_source_t * source){
     // TODO notify client
@@ -366,21 +384,8 @@ static void broadcast_audio_scan_service_server_sync_info_request(bass_source_t 
     
 }
 
-static void bass_add_source(bass_source_t * source, uint8_t *buffer, uint16_t buffer_size){
-    UNUSED(buffer_size);
-
+static void bass_add_pa_info_and_subgroups(bass_source_t * source, uint8_t *buffer, uint16_t buffer_size){
     uint8_t pos = 0;
-
-    source->address_type = (bd_addr_type_t)buffer[pos++];
-    
-    reverse_bd_addr(&buffer[pos], source->address);
-    pos += 6;
-
-    source->adv_sid = buffer[pos++];
-
-    source->broadcast_id = little_endian_read_24(buffer, pos);
-    pos += 3;
-
     lea_pa_sync_t pa_sync = (lea_pa_sync_t)buffer[pos++]; 
     switch (pa_sync){
         case LEA_PA_SYNC_DO_NOT_SYNCHRONIZE_TO_PA:
@@ -389,12 +394,12 @@ static void bass_add_source(bass_source_t * source, uint8_t *buffer, uint16_t bu
         case LEA_PA_SYNC_SYNCHRONIZE_TO_PA_PAST_AVAILABLE:
         case LEA_PA_SYNC_SYNCHRONIZE_TO_PA_PAST_NOT_AVAILABLE:
             source->pa_sync_state = LEA_PA_SYNC_STATE_SYNCINFO_REQUEST;
-            broadcast_audio_scan_service_server_sync_info_request(source);
-            bass_emit_remote_pa_sync_state(source, buffer);
             break;
         default:
-            break;
+            btstack_assert(false);
+            return;
     }
+    bass_emit_remote_pa_sync_state(source, buffer);
     
     source->pa_interval = little_endian_read_16(buffer, pos);
     pos += 2;
@@ -408,9 +413,43 @@ static void bass_add_source(bass_source_t * source, uint8_t *buffer, uint16_t bu
         pos += 4;
         source->subgroups[i].metadata_length = buffer[pos++];
         // metadata
-        memcpy(source->subgroups[i].metadata, &buffer[pos], source->subgroups[i].metadata_length);
+        memcpy(&source->subgroups[i].metadata[0], &buffer[pos], source->subgroups[i].metadata_length);
         pos += source->subgroups[i].metadata_length;
     }
+}
+
+static void bass_add_source(uint8_t *buffer, uint16_t buffer_size){
+    UNUSED(buffer_size);
+    bass_source_t * source = bass_find_empty_or_least_used_source();
+    if (source == NULL){
+        return;
+    }
+
+    uint8_t pos = 0;
+    source->address_type = (bd_addr_type_t)buffer[pos++];
+    
+    reverse_bd_addr(&buffer[pos], source->address);
+    pos += 6;
+
+    source->adv_sid = buffer[pos++];
+
+    source->broadcast_id = little_endian_read_24(buffer, pos);
+    pos += 3;
+
+    bass_add_pa_info_and_subgroups(source, buffer+pos, buffer_size-pos);
+}
+
+static void bass_modify_source(uint8_t *buffer, uint16_t buffer_size){
+    UNUSED(buffer_size);
+    uint8_t pos = 0;
+
+    uint8_t source_id = buffer[pos++];
+
+    bass_source_t * source = bass_find_source_for_source_id(source_id);
+    if (source == NULL){
+        return;
+    }
+    bass_add_pa_info_and_subgroups(source, buffer+pos, buffer_size-pos);
 }
 
 static int broadcast_audio_scan_service_write_callback(hci_con_handle_t con_handle, uint16_t attribute_handle, uint16_t transaction_mode, uint16_t offset, uint8_t *buffer, uint16_t buffer_size){
@@ -423,7 +462,9 @@ static int broadcast_audio_scan_service_write_callback(hci_con_handle_t con_hand
         }
 
         lea_bass_opcode_t opcode = (lea_bass_opcode_t)buffer[0];
-        
+        uint8_t  *remote_data = &buffer[1];
+        uint16_t remote_data_size = buffer_size - 1;
+
         switch (opcode){
             case LEA_BASS_OPCODE_REMOTE_SCAN_STOPPED:
                 bass_emit_remote_scan_stoped();
@@ -434,20 +475,21 @@ static int broadcast_audio_scan_service_write_callback(hci_con_handle_t con_hand
                 break;
 
             case LEA_BASS_OPCODE_ADD_SOURCE:
-                if (buffer_size < 16){ // 15 min for source, 1 for opcode
-                    break;
-                }
-
-                if (bass_remote_add_source_buffer_valid(buffer + 1, buffer_size - 1)){
-                    bass_source_t * source = bass_find_empty_or_least_used_source();
-                    bass_add_source(source, buffer + 1, buffer_size - 1);
+                if (bass_remote_add_source_buffer_valid(remote_data, remote_data_size)){
+                    bass_add_source(remote_data, remote_data_size);
                 }
                 break;
 
             case LEA_BASS_OPCODE_MODIFY_SOURCE:
+                if (bass_remote_modify_source_buffer_valid(remote_data, remote_data_size)){
+                    bass_modify_source(remote_data, remote_data_size);
+                }
                 break;
 
             case LEA_BASS_OPCODE_SET_BROADCAST_CODE:
+                if (remote_data_size < 17){
+                    break;
+                }
                 break;
 
             case LEA_BASS_OPCODE_REMOVE_SOURCE:

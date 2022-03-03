@@ -92,9 +92,9 @@ typedef struct {
     // assigned by client via control point
     bd_addr_type_t address_type; 
     bd_addr_t address;
-    uint8_t  adv_sid;
-    uint32_t broadcast_id;
-    lea_pa_sync_state_t pa_sync_state;
+    uint8_t   adv_sid;
+    uint32_t  broadcast_id;
+    lea_pa_sync_state_t  pa_sync_state;
     lea_big_encryption_t big_encryption;
     uint8_t  bad_code[16];
     
