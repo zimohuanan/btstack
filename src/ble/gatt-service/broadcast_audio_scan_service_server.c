@@ -338,7 +338,6 @@ static bool bass_pa_info_and_subgroups_valid(uint8_t *buffer, uint16_t buffer_si
         return false;
     }
 
-    // printf("Number of subgroups %u, buffer size %u, pos %u\n", num_subgroups, buffer_size, pos);
     uint8_t i;
     for (i = 0; i < num_subgroups; i++){
         // bis_sync
@@ -572,7 +571,6 @@ void broadcast_audio_scan_service_server_init(uint8_t sources_num, bass_source_t
     while ( (start_handle < end_handle) && (bass_sources_num < sources_num)) {
         uint16_t chr_value_handle = gatt_server_get_value_handle_for_characteristic_with_uuid16(start_handle, end_handle, ORG_BLUETOOTH_CHARACTERISTIC_BROADCAST_RECEIVE_STATE);
         uint16_t chr_client_configuration_handle = gatt_server_get_client_configuration_handle_for_characteristic_with_uuid16(start_handle, end_handle, ORG_BLUETOOTH_CHARACTERISTIC_BROADCAST_RECEIVE_STATE);
-        log_info("BASS Receive State: value handle 0x%02x, CCC 0x%02x", chr_value_handle, chr_client_configuration_handle);
         
         if (chr_value_handle == 0){
             break;
@@ -592,8 +590,6 @@ void broadcast_audio_scan_service_server_init(uint8_t sources_num, bass_source_t
         bass_sources_num++;
     }
 
-    log_info("Found BASS service 0x%02x-0x%02x", start_handle, end_handle);
-
     // register service with ATT Server
     broadcast_audio_scan_service.start_handle   = start_handle;
     broadcast_audio_scan_service.end_handle     = end_handle;
@@ -607,7 +603,6 @@ void broadcast_audio_scan_service_server_register_packet_handler(btstack_packet_
     btstack_assert(callback != NULL);
     bass_event_callback = callback;
 }
-
 
 void broadcast_audio_scan_service_server_set_pa_sync_state(uint8_t source_id, lea_pa_sync_state_t sync_state){
     btstack_assert(sync_state >= LEA_PA_SYNC_STATE_RFU);
@@ -630,4 +625,8 @@ void broadcast_audio_scan_service_server_set_pa_sync_state(uint8_t source_id, le
 
 btstack_linked_list_t * broadcast_audio_scan_service_server_get_sources(void){
     return &bass_sources;
+}
+
+void broadcast_audio_scan_service_server_deinit(void){
+    bass_sources = NULL;
 }

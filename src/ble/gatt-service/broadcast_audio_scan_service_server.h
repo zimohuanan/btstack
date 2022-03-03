@@ -110,6 +110,7 @@ typedef struct {
  * @brief Init Broadcast Audio Scan Service Server with ATT DB
  */
 void broadcast_audio_scan_service_server_init(uint8_t sources_num, bass_source_t * sources);
+void broadcast_audio_scan_service_server_deinit(void);
 
 /**
  * @brief Register callback.
