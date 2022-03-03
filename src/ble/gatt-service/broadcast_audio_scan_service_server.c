@@ -37,6 +37,8 @@
 
 #define BTSTACK_FILE__ "broadcast_audio_scan_service_server.c"
 
+#include <stdio.h>
+
 #include "ble/att_db.h"
 #include "ble/att_server.h"
 #include "bluetooth_gatt.h"
@@ -191,16 +193,36 @@ static void bass_emit_remote_pa_sync_state(bass_source_t * source, uint8_t * buf
     event[pos++] = GATTSERVICE_SUBEVENT_BASS_PA_SYNC_STATE;
     little_endian_store_16(event, pos, bass_con_handle);
     pos += 2;
+    
     event[pos++] = source->source_id;
-
-    // addr type(1), addr(6), sid(1), bid(3), pa_sync_state(1), pa_interval(2)
-    memcpy(&event[pos], buffer, 14);
-    pos += 14;
-    event[17] = source->pa_sync_state;
-
+    event[pos++] = (uint8_t)source->address_type;
+    memcpy(&event[pos], source->address, 6);
+    event[pos++] = source->adv_sid;
+    little_endian_store_24(event, pos, source->broadcast_id);
+    pos += 3;
+    event[pos++] = source->pa_sync_state;
+    little_endian_store_16(event, pos, source->pa_interval);
+    pos += 2;
+    
     (*bass_event_callback)(HCI_EVENT_PACKET, 0, event, sizeof(event));
 }
 
+static void bass_emit_broadcast_code(uint8_t * buffer){
+    btstack_assert(bass_event_callback != NULL);
+    
+    uint8_t event[22];
+    uint8_t pos = 0;
+    event[pos++] = HCI_EVENT_GATTSERVICE_META;
+    event[pos++] = sizeof(event) - 2;
+    event[pos++] = GATTSERVICE_SUBEVENT_BASS_BROADCAST_CODE;
+    little_endian_store_16(event, pos, bass_con_handle);
+    pos += 2;
+    event[pos++] = buffer[0];
+    reverse_bytes(&buffer[1], &event[pos], 16);
+    pos += 16;
+
+    (*bass_event_callback)(HCI_EVENT_PACKET, 0, event, sizeof(event));
+}
 // help with buffer == NULL
 static uint16_t bass_virtual_memcpy(
     const uint8_t * field_data, uint16_t field_len, uint16_t field_offset,
@@ -490,6 +512,7 @@ static int broadcast_audio_scan_service_write_callback(hci_con_handle_t con_hand
                 if (remote_data_size < 17){
                     break;
                 }
+                bass_emit_broadcast_code(remote_data);
                 break;
 
             case LEA_BASS_OPCODE_REMOVE_SOURCE:

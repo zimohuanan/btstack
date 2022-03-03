@@ -3894,15 +3894,6 @@ typedef uint8_t sm_key_t[16];
 #define GATTSERVICE_SUBEVENT_BASS_REMOTE_SCAN_STARTED                          0x27u
 
 /**
- * @format 1H1P
- * @param subevent_code
- * @param con_handle
- * @param source_id
- * @param broadcast_code
-*/
-#define GATTSERVICE_SUBEVENT_BASS_BROADCAST_CODE                               0x28u
-
-/**
  * @format 1211B1312  
  * @param subevent_code
  * @param con_handle
@@ -3915,6 +3906,15 @@ typedef uint8_t sm_key_t[16];
  * @param pa_interval
  */
 #define GATTSERVICE_SUBEVENT_BASS_PA_SYNC_STATE                                0x28u
+
+/**
+ * @format 1H1P
+ * @param subevent_code
+ * @param con_handle
+ * @param source_id
+ * @param broadcast_code
+*/
+#define GATTSERVICE_SUBEVENT_BASS_BROADCAST_CODE                               0x29u
 
 // MAP Meta Event Group
 
