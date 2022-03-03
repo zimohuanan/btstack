@@ -3916,6 +3916,15 @@ typedef uint8_t sm_key_t[16];
 */
 #define GATTSERVICE_SUBEVENT_BASS_BROADCAST_CODE                               0x29u
 
+/**
+ * @format 1H1
+ * @param subevent_code
+ * @param con_handle
+ * @param source_id
+*/
+#define GATTSERVICE_SUBEVENT_BASS_SOURCE_REMOVED                               0x30u
+
+
 // MAP Meta Event Group
 
 /**
