@@ -58,28 +58,29 @@ static uint16_t bass_audio_scan_control_point_handle;
 
 static btstack_linked_list_t bass_sources;
 static uint8_t  bass_sources_num = 0;
-static uint8_t  bass_source_counter = 0;
-static uint8_t  bass_update_counter = 0;
+
+static uint8_t  bass_source_id_counter = 0;
+static uint8_t  bass_logic_time = 0;
 
 static uint8_t bass_get_next_source_id(void){
     uint8_t next_source_id;
-    if (bass_source_counter == 0xff) {
+    if (bass_source_id_counter == 0xff) {
         next_source_id = 1;
     } else {
-        next_source_id = bass_source_counter + 1;
+        next_source_id = bass_source_id_counter + 1;
     }
-    bass_source_counter = next_source_id;
+    bass_source_id_counter = next_source_id;
     return next_source_id;
 }
 
 static uint8_t bass_get_next_update_counter(void){
     uint8_t next_update_counter;
-    if (bass_update_counter == 0xff) {
+    if (bass_logic_time == 0xff) {
         next_update_counter = 0;
     } else {
-        next_update_counter = bass_update_counter + 1;
+        next_update_counter = bass_logic_time + 1;
     }
-    bass_update_counter = next_update_counter;
+    bass_logic_time = next_update_counter;
     return next_update_counter;
 }
 
@@ -616,9 +617,8 @@ void broadcast_audio_scan_service_server_init(uint8_t sources_num, bass_source_t
 
     bass_audio_scan_control_point_handle = gatt_server_get_value_handle_for_characteristic_with_uuid16(start_handle, end_handle, ORG_BLUETOOTH_CHARACTERISTIC_BROADCAST_AUDIO_SCAN_CONTROL_POINT);
     bass_sources_num = 0;
-    bass_source_counter = 0;
-    bass_update_counter = 0;
-    bass_source_notification_task = 0;
+    bass_source_id_counter = 0;
+    bass_logic_time = 0;
 
     while ( (start_handle < end_handle) && (bass_sources_num < sources_num)) {
         uint16_t chr_value_handle = gatt_server_get_value_handle_for_characteristic_with_uuid16(start_handle, end_handle, ORG_BLUETOOTH_CHARACTERISTIC_BROADCAST_RECEIVE_STATE);
