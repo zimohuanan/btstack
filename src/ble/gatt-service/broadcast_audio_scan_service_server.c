@@ -353,10 +353,25 @@ static bool bass_pa_info_and_subgroups_valid(uint8_t *buffer, uint16_t buffer_si
         return false;
     }
 
+    // If a BIS_Sync parameter value is not 0xFFFFFFFF for a subgroup, 
+    // and if a BIS_index value written by a client is set to a value of 0b1 in more than one subgroup, 
+    // the server shall ignore the operation.
     uint8_t i;
+    uint32_t mask_total = 0;
     for (i = 0; i < num_subgroups; i++){
         // bis_sync
+        uint32_t bis_sync = little_endian_read_32(buffer, pos);
         pos += 4;
+        
+        if (bis_sync != 0xFFFFFFFF){
+            uint32_t mask_add = mask_total + ~bis_sync;
+            uint32_t mask_or  = mask_total | ~bis_sync;
+            if (mask_add != mask_or){
+                // not disjunct
+                return false;
+            }
+            mask_total = mask_add; 
+        }
         
         // check if we can read metadata_length
         if (pos >= buffer_size){
@@ -372,6 +387,7 @@ static bool bass_pa_info_and_subgroups_valid(uint8_t *buffer, uint16_t buffer_si
         // metadata
         pos += metadata_length;
     }
+
     return (pos == buffer_size);
 }
 
