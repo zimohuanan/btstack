@@ -121,8 +121,6 @@ void broadcast_audio_scan_service_server_register_packet_handler(btstack_packet_
 
 void broadcast_audio_scan_service_server_set_pa_sync_state(uint8_t source_id, lea_pa_sync_state_t sync_state);
 
-btstack_linked_list_t * broadcast_audio_scan_service_server_get_sources(void);
-
 /* API_END */
 
 #if defined __cplusplus

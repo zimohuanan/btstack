@@ -28,7 +28,7 @@
 #define BASS_NUM_SOURCES 2
 #define BASS_UNDEFINED_EVENT    0xFF
 
-static bass_source_t sources[2];
+static bass_source_t bass_sources[2];
 
 static uint8_t expected_scan_active = 0;
 static uint8_t received_event = 0;
@@ -42,8 +42,6 @@ TEST_GROUP(BROADCAST_AUDIO_SCAN_SERVICE_SERVER){
         // setup database
         att_set_db(profile_data);
         bass_audio_scan_control_point_handle = gatt_server_get_value_handle_for_characteristic_with_uuid16(0, 0xffff, ORG_BLUETOOTH_CHARACTERISTIC_BROADCAST_AUDIO_SCAN_CONTROL_POINT);
-
-        // con_handle = 0x00;
     }
 
     void teardown(){
@@ -59,16 +57,13 @@ TEST(BROADCAST_AUDIO_SCAN_SERVICE_SERVER, lookup_attribute_handles){
     uint16_t expected_sources_num = 2;
     uint16_t sources_num = 0;
     
-    broadcast_audio_scan_service_server_init(BASS_NUM_SOURCES, sources);
+    broadcast_audio_scan_service_server_init(BASS_NUM_SOURCES, bass_sources);
 
-    btstack_linked_list_t * bass_sources = broadcast_audio_scan_service_server_get_sources();
-
-    btstack_linked_list_iterator_t it;    
-    btstack_linked_list_iterator_init(&it, bass_sources);
-    while (btstack_linked_list_iterator_has_next(&it)){
-        bass_source_t * item = (bass_source_t*) btstack_linked_list_iterator_next(&it);
-        CHECK(item->bass_receive_state_handle != 0);
-        CHECK(item->bass_receive_state_client_configuration_handle != 0);
+    uint16_t i;
+    for (i = 0; i < BASS_NUM_SOURCES; i++){
+        bass_source_t source = bass_sources[i];
+        CHECK(source.bass_receive_state_handle != 0);
+        CHECK(source.bass_receive_state_client_configuration_handle != 0);
         sources_num++;
     }
     CHECK_EQUAL(expected_sources_num, sources_num);
@@ -81,18 +76,17 @@ TEST(BROADCAST_AUDIO_SCAN_SERVICE_SERVER, read_receive_state_client_configuratio
     uint16_t expected_sources_num = 2;
     uint16_t sources_num = 0;
 
-    broadcast_audio_scan_service_server_init(BASS_NUM_SOURCES, sources);
-    btstack_linked_list_t * bass_sources = broadcast_audio_scan_service_server_get_sources();
-
+    broadcast_audio_scan_service_server_init(BASS_NUM_SOURCES, bass_sources);
+    
     // invalid attribute handle
     uint16_t response_len = mock_att_service_read_callback(con_handle, 0xffff, 0xffff, read_buffer, sizeof(read_buffer));
     CHECK_EQUAL(0, response_len);
 
-    btstack_linked_list_iterator_t it;    
-    btstack_linked_list_iterator_init(&it, bass_sources);
-    while (btstack_linked_list_iterator_has_next(&it)){
-        bass_source_t * item = (bass_source_t*) btstack_linked_list_iterator_next(&it);
-        response_len = mock_att_service_read_callback(con_handle, item->bass_receive_state_client_configuration_handle, 0, read_buffer, sizeof(read_buffer));
+    uint16_t i;
+    for (i = 0; i < BASS_NUM_SOURCES; i++){
+        bass_source_t source = bass_sources[i];
+        
+        response_len = mock_att_service_read_callback(con_handle, source.bass_receive_state_client_configuration_handle, 0, read_buffer, sizeof(read_buffer));
         CHECK_EQUAL(2, response_len);
         MEMCMP_EQUAL(expected_read_buffer, read_buffer, sizeof(expected_read_buffer));
         sources_num++;
@@ -105,22 +99,20 @@ TEST(BROADCAST_AUDIO_SCAN_SERVICE_SERVER, write_receive_state_client_configurati
     uint8_t  expected_read_buffer[] = {0, 1};
     uint8_t  read_buffer[2];
     
-    broadcast_audio_scan_service_server_init(BASS_NUM_SOURCES, sources);
-    btstack_linked_list_t * bass_sources = broadcast_audio_scan_service_server_get_sources();
+    broadcast_audio_scan_service_server_init(BASS_NUM_SOURCES, bass_sources);
 
     // invalid attribute handle
     uint16_t response_len = mock_att_service_read_callback(con_handle, 0xffff, 0xffff, read_buffer, sizeof(read_buffer));
     CHECK_EQUAL(0, response_len);
 
-    btstack_linked_list_iterator_t it;    
-    btstack_linked_list_iterator_init(&it, bass_sources);
-    while (btstack_linked_list_iterator_has_next(&it)){
-        bass_source_t * item = (bass_source_t*) btstack_linked_list_iterator_next(&it);
+    uint16_t i;
+    for (i = 0; i < BASS_NUM_SOURCES; i++){
+        bass_source_t source = bass_sources[i];
 
-        int response = mock_att_service_write_callback(con_handle, item->bass_receive_state_client_configuration_handle, ATT_TRANSACTION_MODE_NONE, 0, write_buffer, sizeof(write_buffer));
+        int response = mock_att_service_write_callback(con_handle, source.bass_receive_state_client_configuration_handle, ATT_TRANSACTION_MODE_NONE, 0, write_buffer, sizeof(write_buffer));
         CHECK_EQUAL(0, response); 
 
-        response_len = mock_att_service_read_callback(con_handle, item->bass_receive_state_client_configuration_handle, 0, read_buffer, sizeof(read_buffer));
+        response_len = mock_att_service_read_callback(con_handle, source.bass_receive_state_client_configuration_handle, 0, read_buffer, sizeof(read_buffer));
         CHECK_EQUAL(2, response_len);
         MEMCMP_EQUAL(expected_read_buffer, read_buffer, sizeof(expected_read_buffer));
     }
@@ -132,19 +124,17 @@ TEST(BROADCAST_AUDIO_SCAN_SERVICE_SERVER, read_receive_state_source_id){
     memset(expected_bass_source, 0, sizeof(expected_bass_source));
     memset(read_buffer, 0, sizeof(read_buffer));
 
-    broadcast_audio_scan_service_server_init(BASS_NUM_SOURCES, sources);
-    btstack_linked_list_t * bass_sources = broadcast_audio_scan_service_server_get_sources();
+    broadcast_audio_scan_service_server_init(BASS_NUM_SOURCES, bass_sources);
 
-    btstack_linked_list_iterator_t it;    
-    btstack_linked_list_iterator_init(&it, bass_sources);
-    while (btstack_linked_list_iterator_has_next(&it)){
-        bass_source_t * item = (bass_source_t*) btstack_linked_list_iterator_next(&it);
+    uint16_t i;
+    for (i = 0; i < BASS_NUM_SOURCES; i++){
+        bass_source_t source = bass_sources[i];
 
-        uint16_t response_len = mock_att_service_read_callback(con_handle, item->bass_receive_state_handle, 0, read_buffer, sizeof(read_buffer));
+        uint16_t response_len = mock_att_service_read_callback(con_handle, source.bass_receive_state_handle, 0, read_buffer, sizeof(read_buffer));
         CHECK_EQUAL(15, response_len);
-        CHECK_EQUAL(item->source_id, read_buffer[0]);
+        CHECK_EQUAL(source.source_id, read_buffer[0]);
         
-        expected_bass_source[0] = item->source_id;
+        expected_bass_source[0] = source.source_id;
         MEMCMP_EQUAL(expected_bass_source, read_buffer, sizeof(expected_bass_source));
     }
 }
@@ -189,7 +179,7 @@ static void packet_handler(uint8_t packet_type, uint16_t channel, uint8_t *packe
 TEST(BROADCAST_AUDIO_SCAN_SERVICE_SERVER, invalid_write_control_point_opcode_not_supported){
     uint8_t write_buffer[1];
 
-    broadcast_audio_scan_service_server_init(BASS_NUM_SOURCES, sources);
+    broadcast_audio_scan_service_server_init(BASS_NUM_SOURCES, bass_sources);
 
     // empty buffer
     uint16_t write_buffer_size = 0;
@@ -206,7 +196,7 @@ TEST(BROADCAST_AUDIO_SCAN_SERVICE_SERVER, write_control_point_scan){
     uint8_t write_buffer[1];
     int response;
 
-    broadcast_audio_scan_service_server_init(BASS_NUM_SOURCES, sources);
+    broadcast_audio_scan_service_server_init(BASS_NUM_SOURCES, bass_sources);
 
     broadcast_audio_scan_service_server_register_packet_handler(&packet_handler);
 
@@ -232,7 +222,7 @@ TEST(BROADCAST_AUDIO_SCAN_SERVICE_SERVER, write_control_point_add_source){
     uint16_t pa_interval = 0xCCDD;
     uint32_t bis_sync_state = 0xFFFFFFFF;
 
-    broadcast_audio_scan_service_server_init(BASS_NUM_SOURCES, sources);
+    broadcast_audio_scan_service_server_init(BASS_NUM_SOURCES, bass_sources);
     received_event = 0;
 
     memset(write_buffer, 0, sizeof(write_buffer));
@@ -344,7 +334,7 @@ TEST(BROADCAST_AUDIO_SCAN_SERVICE_SERVER, write_control_point_set_broadcast_code
     uint8_t write_buffer[18];
     int response;
 
-    broadcast_audio_scan_service_server_init(BASS_NUM_SOURCES, sources);
+    broadcast_audio_scan_service_server_init(BASS_NUM_SOURCES, bass_sources);
 
     received_event = 0;
     memset(write_buffer, 0xAA, sizeof(write_buffer));

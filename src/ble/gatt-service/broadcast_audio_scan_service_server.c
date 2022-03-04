@@ -56,7 +56,7 @@ static btstack_packet_handler_t bass_event_callback;
 // characteristic: AUDIO_SCAN_CONTROL_POINT
 static uint16_t bass_audio_scan_control_point_handle;
 
-static btstack_linked_list_t bass_sources;
+static bass_source_t * bass_sources;
 static uint8_t  bass_sources_num = 0;
 
 static uint8_t  bass_source_id_counter = 0;
@@ -92,19 +92,17 @@ static int8_t bass_counter_delta(uint8_t counter_a, uint8_t counter_b){
 static bass_source_t * bass_find_empty_or_least_used_source(void){
     bass_source_t * least_used_source = NULL;
 
-    btstack_linked_list_iterator_t it;    
-    btstack_linked_list_iterator_init(&it, &bass_sources);
-    while (btstack_linked_list_iterator_has_next(&it)){
-        bass_source_t * item = (bass_source_t*) btstack_linked_list_iterator_next(&it);
-        if (item->source_id == 0){
-            return item;
+    uint16_t i;
+    for (i = 0; i < bass_sources_num; i++){
+        if (bass_sources[i].source_id == 0){
+            return &bass_sources[i];
         }
         if (!least_used_source){
-            least_used_source = item;
+            least_used_source = &bass_sources[i];
             continue;
         }
-        if (bass_counter_delta(item->update_counter, least_used_source->update_counter) < 0 ){
-            least_used_source = item;
+        if (bass_counter_delta(bass_sources[i].update_counter, least_used_source->update_counter) < 0 ){
+            least_used_source = &bass_sources[i];
         }
     }
     btstack_assert(least_used_source != NULL);
@@ -112,45 +110,39 @@ static bass_source_t * bass_find_empty_or_least_used_source(void){
 }
 
 static bass_source_t * bass_find_receive_state_for_value_handle(uint16_t attribute_handle){
-    btstack_linked_list_iterator_t it;    
-    btstack_linked_list_iterator_init(&it, &bass_sources);
-    while (btstack_linked_list_iterator_has_next(&it)){
-        bass_source_t * item = (bass_source_t*) btstack_linked_list_iterator_next(&it);
-        if (attribute_handle != item->bass_receive_state_handle) continue;
-        return item;
+    uint16_t i;
+    for (i = 0; i < bass_sources_num; i++){
+        if (attribute_handle == bass_sources[i].bass_receive_state_handle){
+            return &bass_sources[i];
+        }
     }
     return NULL;
 }
 
 static bass_source_t * bass_find_receive_state_for_client_configuration_handle(uint16_t attribute_handle){
-    btstack_linked_list_iterator_t it;    
-    btstack_linked_list_iterator_init(&it, &bass_sources);
-    while (btstack_linked_list_iterator_has_next(&it)){
-        bass_source_t * item = (bass_source_t*) btstack_linked_list_iterator_next(&it);
-        if (attribute_handle != item->bass_receive_state_client_configuration_handle) continue;
-        return item;
+    uint16_t i;
+    for (i = 0; i < bass_sources_num; i++){
+        if (bass_sources[i].bass_receive_state_client_configuration_handle == attribute_handle){
+            return &bass_sources[i];
+        }
     }
     return NULL;
 }
 
 static bass_source_t * bass_find_source_for_source_id(uint8_t source_id){
-    btstack_linked_list_iterator_t it;    
-    btstack_linked_list_iterator_init(&it, &bass_sources);
-    while (btstack_linked_list_iterator_has_next(&it)){
-        bass_source_t * item = (bass_source_t*) btstack_linked_list_iterator_next(&it);
-        if (source_id != item->source_id) continue;
-        return item;
+    uint16_t i;
+    for (i = 0; i < bass_sources_num; i++){
+        if (bass_sources[i].source_id == source_id) {
+            return &bass_sources[i];
+        }
     }
     return NULL;
 }
 
 static void bass_server_reset_values(void){
-    bass_con_handle = HCI_CON_HANDLE_INVALID;
-    btstack_linked_list_iterator_t it;    
-    btstack_linked_list_iterator_init(&it, &bass_sources);
-    while (btstack_linked_list_iterator_has_next(&it)){
-        bass_source_t * item = (bass_source_t*) btstack_linked_list_iterator_next(&it);
-        memset(item, 0, sizeof(bass_source_t));
+    uint16_t i;
+    for (i = 0; i < bass_sources_num; i++){
+        memset(&bass_sources[i], 0, sizeof(bass_source_t));
     }
 }
 
@@ -323,7 +315,6 @@ static uint16_t broadcast_audio_scan_service_read_callback(hci_con_handle_t con_
     UNUSED(con_handle);
 
     bass_source_t * source;
-
     source = bass_find_receive_state_for_value_handle(attribute_handle);
     if (source){
         return bass_copy_source(source, offset, buffer, buffer_size);
@@ -619,6 +610,7 @@ void broadcast_audio_scan_service_server_init(uint8_t sources_num, bass_source_t
     bass_sources_num = 0;
     bass_source_id_counter = 0;
     bass_logic_time = 0;
+    bass_sources = sources;
 
     while ( (start_handle < end_handle) && (bass_sources_num < sources_num)) {
         uint16_t chr_value_handle = gatt_server_get_value_handle_for_characteristic_with_uuid16(start_handle, end_handle, ORG_BLUETOOTH_CHARACTERISTIC_BROADCAST_RECEIVE_STATE);
@@ -627,7 +619,7 @@ void broadcast_audio_scan_service_server_init(uint8_t sources_num, bass_source_t
         if (chr_value_handle == 0){
             break;
         }
-        bass_source_t * source = &sources[bass_sources_num];
+        bass_source_t * source = &bass_sources[bass_sources_num];
         memset(source, 0, sizeof(bass_source_t));
 
         source->source_id = bass_get_next_source_id();
@@ -636,12 +628,10 @@ void broadcast_audio_scan_service_server_init(uint8_t sources_num, bass_source_t
         source->bass_receive_state_handle = chr_value_handle;
         source->bass_receive_state_client_configuration_handle = chr_client_configuration_handle;
         source->bass_receive_state_client_configuration = 0;
-
-        btstack_linked_list_add(&bass_sources, (btstack_linked_item_t *)source);
+        
         start_handle = chr_client_configuration_handle + 1;
         bass_sources_num++;
     }
-
     // register service with ATT Server
     broadcast_audio_scan_service.start_handle   = start_handle;
     broadcast_audio_scan_service.end_handle     = end_handle;
@@ -663,10 +653,8 @@ static void bass_service_can_send_now(void * context){
 
     uint8_t buffer[254];
     uint16_t bytes_copied = bass_copy_source(source, 0, buffer, sizeof(buffer));
-    att_server_notify(bass_con_handle, source->bass_receive_state_handle, &buffer, bytes_copied);
+    att_server_notify(bass_con_handle, source->bass_receive_state_handle, &buffer[0], bytes_copied);
 }
-
-static uint16_t notify_source_task;
 
 void broadcast_audio_scan_service_server_set_pa_sync_state(uint8_t source_id, lea_pa_sync_state_t sync_state){
     btstack_assert(sync_state >= LEA_PA_SYNC_STATE_RFU);
@@ -680,14 +668,9 @@ void broadcast_audio_scan_service_server_set_pa_sync_state(uint8_t source_id, le
     if (source->bass_receive_state_client_configuration != 0){
         source->source_callback.callback = &bass_service_can_send_now;
         source->source_callback.context  = source;
-        att_server_register_can_send_now_callback(&source_callback, source->source_id);
+        att_server_register_can_send_now_callback(&source->source_callback, source->source_id);
     }
 }
 
-btstack_linked_list_t * broadcast_audio_scan_service_server_get_sources(void){
-    return &bass_sources;
-}
-
 void broadcast_audio_scan_service_server_deinit(void){
-    bass_sources = NULL;
 }
