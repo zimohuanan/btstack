@@ -103,8 +103,9 @@ typedef struct {
     uint8_t  subgroups_num;
     // Shall not exist if num_subgroups = 0
     bass_subgroup_t subgroups[BASS_SUBGROUPS_MAX_NUM];
-} bass_source_t;
 
+    btstack_context_callback_registration_t  source_callback;
+} bass_source_t;
 
 /**
  * @brief Init Broadcast Audio Scan Service Server with ATT DB

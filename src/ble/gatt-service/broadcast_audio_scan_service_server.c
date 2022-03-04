@@ -430,12 +430,6 @@ static bool bass_remote_modify_source_buffer_valid(uint8_t *buffer, uint16_t buf
     return bass_pa_info_and_subgroups_valid(buffer+pos, buffer_size-pos);
 }
 
-static void broadcast_audio_scan_service_server_sync_info_request(bass_source_t * source){
-    // TODO notify client
-    // TODO start timer
-    
-}
-
 static void bass_update_pa_info_and_subgroups(bass_source_t * source, uint8_t *buffer, uint16_t buffer_size){
     uint8_t pos = 0;
     lea_pa_sync_t pa_sync = (lea_pa_sync_t)buffer[pos++]; 
@@ -624,6 +618,7 @@ void broadcast_audio_scan_service_server_init(uint8_t sources_num, bass_source_t
     bass_sources_num = 0;
     bass_source_counter = 0;
     bass_update_counter = 0;
+    bass_source_notification_task = 0;
 
     while ( (start_handle < end_handle) && (bass_sources_num < sources_num)) {
         uint16_t chr_value_handle = gatt_server_get_value_handle_for_characteristic_with_uuid16(start_handle, end_handle, ORG_BLUETOOTH_CHARACTERISTIC_BROADCAST_RECEIVE_STATE);
@@ -661,6 +656,18 @@ void broadcast_audio_scan_service_server_register_packet_handler(btstack_packet_
     bass_event_callback = callback;
 }
 
+static void bass_service_can_send_now(void * context){
+    bass_source_t * source = (bass_source_t *) context;
+    
+    btstack_assert(source != NULL);
+
+    uint8_t buffer[254];
+    uint16_t bytes_copied = bass_copy_source(source, 0, buffer, sizeof(buffer));
+    att_server_notify(bass_con_handle, source->bass_receive_state_handle, &buffer, bytes_copied);
+}
+
+static uint16_t notify_source_task;
+
 void broadcast_audio_scan_service_server_set_pa_sync_state(uint8_t source_id, lea_pa_sync_state_t sync_state){
     btstack_assert(sync_state >= LEA_PA_SYNC_STATE_RFU);
 
@@ -670,14 +677,11 @@ void broadcast_audio_scan_service_server_set_pa_sync_state(uint8_t source_id, le
     }
 
     source->pa_sync_state = sync_state;
-
-    switch (sync_state){
-        case LEA_PA_SYNC_STATE_SYNCINFO_REQUEST:
-            broadcast_audio_scan_service_server_sync_info_request(source);
-            break;
-        default:
-            break;
-    }   
+    if (source->bass_receive_state_client_configuration != 0){
+        source->source_callback.callback = &bass_service_can_send_now;
+        source->source_callback.context  = source;
+        att_server_register_can_send_now_callback(&source_callback, source->source_id);
+    }
 }
 
 btstack_linked_list_t * broadcast_audio_scan_service_server_get_sources(void){
