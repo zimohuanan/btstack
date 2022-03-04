@@ -420,7 +420,7 @@ static void broadcast_audio_scan_service_server_sync_info_request(bass_source_t 
     
 }
 
-static void bass_add_pa_info_and_subgroups(bass_source_t * source, uint8_t *buffer, uint16_t buffer_size){
+static void bass_update_pa_info_and_subgroups(bass_source_t * source, uint8_t *buffer, uint16_t buffer_size){
     uint8_t pos = 0;
     lea_pa_sync_t pa_sync = (lea_pa_sync_t)buffer[pos++]; 
     switch (pa_sync){
@@ -472,20 +472,7 @@ static void bass_add_source(uint8_t *buffer, uint16_t buffer_size){
     source->broadcast_id = little_endian_read_24(buffer, pos);
     pos += 3;
 
-    bass_add_pa_info_and_subgroups(source, buffer+pos, buffer_size-pos);
-}
-
-static void bass_modify_source(uint8_t *buffer, uint16_t buffer_size){
-    UNUSED(buffer_size);
-    uint8_t pos = 0;
-
-    uint8_t source_id = buffer[pos++];
-
-    bass_source_t * source = bass_find_source_for_source_id(source_id);
-    if (source == NULL){
-        return;
-    }
-    bass_add_pa_info_and_subgroups(source, buffer+pos, buffer_size-pos);
+    bass_update_pa_info_and_subgroups(source, buffer+pos, buffer_size-pos);
 }
 
 static bool bass_pa_synchronized(bass_source_t * source){
@@ -508,7 +495,7 @@ static int broadcast_audio_scan_service_write_callback(hci_con_handle_t con_hand
     
     if (attribute_handle == bass_audio_scan_control_point_handle){
         if (buffer_size < 1){
-            return BASS_ERROR_CODE_OPCODE_NOT_SUPPORTED;
+            return ATT_ERROR_WRITE_REQUEST_REJECTED;
         }
 
         lea_bass_opcode_t opcode = (lea_bass_opcode_t)buffer[0];
@@ -528,33 +515,42 @@ static int broadcast_audio_scan_service_write_callback(hci_con_handle_t con_hand
                 break;
 
             case LEA_BASS_OPCODE_ADD_SOURCE:
-                if (bass_remote_add_source_buffer_valid(remote_data, remote_data_size)){
-                    bass_add_source(remote_data, remote_data_size);
+                if (!bass_remote_add_source_buffer_valid(remote_data, remote_data_size)){
+                    return ATT_ERROR_WRITE_REQUEST_REJECTED;
                 }
+                bass_add_source(remote_data, remote_data_size);
                 break;
 
             case LEA_BASS_OPCODE_MODIFY_SOURCE:
-                if (bass_remote_modify_source_buffer_valid(remote_data, remote_data_size)){
-                    bass_modify_source(remote_data, remote_data_size);
+                if (!bass_remote_modify_source_buffer_valid(remote_data, remote_data_size)){
+                    return ATT_ERROR_WRITE_REQUEST_REJECTED;
                 }
+                
+                source_id = remote_data[0];
+                source = bass_find_source_for_source_id(source_id);
+                if (source == NULL){
+                    return BASS_ERROR_CODE_INVALID_SOURCE_ID;
+                }
+                bass_update_pa_info_and_subgroups(source, remote_data+1, remote_data_size-1);
                 break;
 
             case LEA_BASS_OPCODE_SET_BROADCAST_CODE:
                 if (remote_data_size < 17){
-                    break;
+                    return ATT_ERROR_WRITE_REQUEST_REJECTED;
                 }
                 bass_emit_broadcast_code(remote_data);
                 break;
 
             case LEA_BASS_OPCODE_REMOVE_SOURCE:
                 if (remote_data_size < 1){
-                    break;
+                    return ATT_ERROR_WRITE_REQUEST_REJECTED;
                 }
                 source_id = remote_data[0];
                 source = bass_find_source_for_source_id(source_id);
                 if (source == NULL){
-                    break;
+                    return BASS_ERROR_CODE_INVALID_SOURCE_ID;
                 }
+
                 if (bass_pa_synchronized(source) || bass_bis_synchronized(source)){
                     break;
                 }
