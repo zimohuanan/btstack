@@ -194,12 +194,12 @@ TEST(BROADCAST_AUDIO_SCAN_SERVICE_SERVER, invalid_write_control_point_opcode_not
     // empty buffer
     uint16_t write_buffer_size = 0;
     int response = mock_att_service_write_callback(con_handle, bass_audio_scan_control_point_handle, ATT_TRANSACTION_MODE_NONE, 0, write_buffer, write_buffer_size);
-    CHECK_EQUAL(BASS_ERROR_CODE_OPCODE_NOT_SUPPORTED, response); 
+    CHECK_EQUAL(ATT_ERROR_WRITE_REQUEST_REJECTED, response); 
 
     // wrong opcode
     write_buffer[0] = (uint8_t)LEA_BASS_OPCODE_RFU;
     response = mock_att_service_write_callback(con_handle, bass_audio_scan_control_point_handle, ATT_TRANSACTION_MODE_NONE, 0, write_buffer, write_buffer_size);
-    CHECK_EQUAL(BASS_ERROR_CODE_OPCODE_NOT_SUPPORTED, response);    
+    CHECK_EQUAL(ATT_ERROR_WRITE_REQUEST_REJECTED, response);    
 }
 
 TEST(BROADCAST_AUDIO_SCAN_SERVICE_SERVER, write_control_point_scan){
@@ -244,14 +244,14 @@ TEST(BROADCAST_AUDIO_SCAN_SERVICE_SERVER, write_control_point_add_source){
     // buffer size < 15
     // no event is emitted
     response = mock_att_service_write_callback(con_handle, bass_audio_scan_control_point_handle, ATT_TRANSACTION_MODE_NONE, 0, write_buffer, 10);
-    CHECK_EQUAL(0, response); 
+    CHECK_EQUAL(ATT_ERROR_WRITE_REQUEST_REJECTED, response); 
     CHECK_EQUAL(0, received_event);
     
     // wrong Advertiser_Address_Type
     write_buffer[1] = 0x03;
     // no event is emitted
     response = mock_att_service_write_callback(con_handle, bass_audio_scan_control_point_handle, ATT_TRANSACTION_MODE_NONE, 0, write_buffer, sizeof(write_buffer));
-    CHECK_EQUAL(0, response); 
+    CHECK_EQUAL(ATT_ERROR_WRITE_REQUEST_REJECTED, response); 
     CHECK_EQUAL(0, received_event);
 
     // Advertiser_Address_Type = Public Device Address 
@@ -260,7 +260,7 @@ TEST(BROADCAST_AUDIO_SCAN_SERVICE_SERVER, write_control_point_add_source){
     // Wrong advertising_sid Range: 0x00-0x0F
     write_buffer[8] = 0xFF;
     response = mock_att_service_write_callback(con_handle, bass_audio_scan_control_point_handle, ATT_TRANSACTION_MODE_NONE, 0, write_buffer, sizeof(write_buffer));
-    CHECK_EQUAL(0, response); 
+    CHECK_EQUAL(ATT_ERROR_WRITE_REQUEST_REJECTED, response); 
     CHECK_EQUAL(0, received_event);
 
     // advertising_sid Range: 0x01
@@ -271,7 +271,7 @@ TEST(BROADCAST_AUDIO_SCAN_SERVICE_SERVER, write_control_point_add_source){
     // Wrong pa_sync_state
     write_buffer[12] = (uint8_t)LEA_PA_SYNC_RFU;
     response = mock_att_service_write_callback(con_handle, bass_audio_scan_control_point_handle, ATT_TRANSACTION_MODE_NONE, 0, write_buffer, sizeof(write_buffer));
-    CHECK_EQUAL(0, response); 
+    CHECK_EQUAL(ATT_ERROR_WRITE_REQUEST_REJECTED, response); 
     CHECK_EQUAL(0, received_event);
 
     // pa_sync_state LEA_PA_SYNC_SYNCHRONIZE_TO_PA_PAST_AVAILABLE
@@ -282,7 +282,7 @@ TEST(BROADCAST_AUDIO_SCAN_SERVICE_SERVER, write_control_point_add_source){
     // num_subgroups excidees BASS_SUBGROUPS_MAX_NUM
     write_buffer[15] = BASS_SUBGROUPS_MAX_NUM + 1;
     response = mock_att_service_write_callback(con_handle, bass_audio_scan_control_point_handle, ATT_TRANSACTION_MODE_NONE, 0, write_buffer, sizeof(write_buffer));
-    CHECK_EQUAL(0, response); 
+    CHECK_EQUAL(ATT_ERROR_WRITE_REQUEST_REJECTED, response); 
     CHECK_EQUAL(0, received_event);
 
     write_buffer[15] = 0;
@@ -295,25 +295,25 @@ TEST(BROADCAST_AUDIO_SCAN_SERVICE_SERVER, write_control_point_add_source){
     write_buffer[15] = 1;
     little_endian_store_32(write_buffer, 16, bis_sync_state);
     response = mock_att_service_write_callback(con_handle, bass_audio_scan_control_point_handle, ATT_TRANSACTION_MODE_NONE, 0, write_buffer, 20);
-    CHECK_EQUAL(0, response); 
+    CHECK_EQUAL(ATT_ERROR_WRITE_REQUEST_REJECTED, response); 
     CHECK_EQUAL(0, received_event);
 
     // num_subgroups valid, metadata_length exceeds BASS_METADATA_MAX_LENGTH
     write_buffer[20] = BASS_METADATA_MAX_LENGTH + 1;
     response = mock_att_service_write_callback(con_handle, bass_audio_scan_control_point_handle, ATT_TRANSACTION_MODE_NONE, 0, write_buffer, 22);
-    CHECK_EQUAL(0, response); 
+    CHECK_EQUAL(ATT_ERROR_WRITE_REQUEST_REJECTED, response); 
     CHECK_EQUAL(0, received_event);
 
     // num_subgroups valid, metadata_length exceeds BASS_METADATA_MAX_LENGTH
     write_buffer[20] = BASS_METADATA_MAX_LENGTH + 1;
     response = mock_att_service_write_callback(con_handle, bass_audio_scan_control_point_handle, ATT_TRANSACTION_MODE_NONE, 0, write_buffer, 22);
-    CHECK_EQUAL(0, response); 
+    CHECK_EQUAL(ATT_ERROR_WRITE_REQUEST_REJECTED, response); 
     CHECK_EQUAL(0, received_event);
 
     // num_subgroups valid, metadata_length valid, metadata nod complete
     write_buffer[20] = 10;
     response = mock_att_service_write_callback(con_handle, bass_audio_scan_control_point_handle, ATT_TRANSACTION_MODE_NONE, 0, write_buffer, 28);
-    CHECK_EQUAL(0, response); 
+    CHECK_EQUAL(ATT_ERROR_WRITE_REQUEST_REJECTED, response); 
     CHECK_EQUAL(0, received_event);
  
     // valid source with subgroup and metadata
