@@ -79,12 +79,11 @@ typedef struct {
 // memory for list of these structs is allocated by the application
 typedef struct {
     // assigned by the server
-    btstack_linked_item_t item;
     uint8_t update_counter;
 
     // source_id = 0, when source is empty
     uint8_t  source_id; 
-    
+
     uint16_t bass_receive_state_handle;
     uint16_t bass_receive_state_client_configuration_handle;
     uint16_t bass_receive_state_client_configuration;
@@ -103,14 +102,17 @@ typedef struct {
     uint8_t  subgroups_num;
     // Shall not exist if num_subgroups = 0
     bass_subgroup_t subgroups[BASS_SUBGROUPS_MAX_NUM];
-
-    btstack_context_callback_registration_t  source_callback;
 } bass_source_t;
+
+typedef struct {
+    hci_con_handle_t con_handle;
+    uint16_t sources_to_notify;
+} bass_remote_client_t;
 
 /**
  * @brief Init Broadcast Audio Scan Service Server with ATT DB
  */
-void broadcast_audio_scan_service_server_init(uint8_t sources_num, bass_source_t * sources);
+void broadcast_audio_scan_service_server_init(uint8_t const sources_num, bass_source_t * sources, uint8_t const clients_num, bass_remote_client_t * clients);
 void broadcast_audio_scan_service_server_deinit(void);
 
 /**
@@ -119,7 +121,7 @@ void broadcast_audio_scan_service_server_deinit(void);
  */
 void broadcast_audio_scan_service_server_register_packet_handler(btstack_packet_handler_t callback);
 
-void broadcast_audio_scan_service_server_set_pa_sync_state(uint8_t source_id, lea_pa_sync_state_t sync_state);
+void broadcast_audio_scan_service_server_set_pa_sync_state(uint8_t source_index, lea_pa_sync_state_t sync_state);
 
 /* API_END */
 

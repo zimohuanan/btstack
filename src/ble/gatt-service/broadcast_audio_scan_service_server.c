@@ -50,17 +50,20 @@
 #include "ble/gatt-service/broadcast_audio_scan_service_server.h"
 
 static att_service_handler_t    broadcast_audio_scan_service;
-static hci_con_handle_t         bass_con_handle;
+// static hci_con_handle_t         bass_con_handle;
 static btstack_packet_handler_t bass_event_callback;
 
 // characteristic: AUDIO_SCAN_CONTROL_POINT
 static uint16_t bass_audio_scan_control_point_handle;
 
-static bass_source_t * bass_sources;
-static uint8_t  bass_sources_num = 0;
-
 static uint8_t  bass_source_id_counter = 0;
 static uint8_t  bass_logic_time = 0;
+
+static bass_source_t * bass_sources;
+static uint8_t  bass_sources_num = 0;
+static bass_remote_client_t * bass_clients;
+static uint8_t  bass_clients_num = 0;
+static btstack_context_callback_registration_t  scheduled_tasks_callback;
 
 static uint8_t bass_get_next_source_id(void){
     uint8_t next_source_id;
@@ -139,18 +142,29 @@ static bass_source_t * bass_find_source_for_source_id(uint8_t source_id){
     return NULL;
 }
 
-static void bass_server_reset_values(void){
+static bass_remote_client_t * bass_find_client_for_con_handle(hci_con_handle_t con_handle){
     uint16_t i;
-    for (i = 0; i < bass_sources_num; i++){
-        memset(&bass_sources[i], 0, sizeof(bass_source_t));
+    for (i = 0; i < bass_clients_num; i++){
+        if (bass_clients[i].con_handle == con_handle) {
+            return &bass_clients[i];
+        }
     }
+    return NULL;
 }
 
-static void bass_set_con_handle(hci_con_handle_t con_handle, uint16_t configuration){
-    bass_con_handle = (configuration == 0) ? HCI_CON_HANDLE_INVALID : con_handle;
+static void bass_register_con_handle(hci_con_handle_t con_handle, uint16_t client_configuration){
+    bass_remote_client_t * client = bass_find_client_for_con_handle(con_handle);
+    if (client == NULL){
+        client = bass_find_client_for_con_handle(HCI_CON_HANDLE_INVALID);
+        if (client == NULL){
+            log_info("Not enough clients available");
+            return;
+        }
+    }
+    client->con_handle = (client_configuration == 0) ? HCI_CON_HANDLE_INVALID : con_handle;
 }
 
-static void bass_emit_remote_scan_stoped(void){
+static void bass_emit_remote_scan_stoped(hci_con_handle_t con_handle){
     btstack_assert(bass_event_callback != NULL);
     
     uint8_t event[5];
@@ -158,12 +172,12 @@ static void bass_emit_remote_scan_stoped(void){
     event[pos++] = HCI_EVENT_GATTSERVICE_META;
     event[pos++] = sizeof(event) - 2;
     event[pos++] = GATTSERVICE_SUBEVENT_BASS_REMOTE_SCAN_STOPED;
-    little_endian_store_16(event, pos, bass_con_handle);
+    little_endian_store_16(event, pos, con_handle);
     pos += 2;
     (*bass_event_callback)(HCI_EVENT_PACKET, 0, event, sizeof(event));
 }
 
-static void bass_emit_remote_scan_started(void){
+static void bass_emit_remote_scan_started(hci_con_handle_t con_handle){
     btstack_assert(bass_event_callback != NULL);
     
     uint8_t event[5];
@@ -171,12 +185,12 @@ static void bass_emit_remote_scan_started(void){
     event[pos++] = HCI_EVENT_GATTSERVICE_META;
     event[pos++] = sizeof(event) - 2;
     event[pos++] = GATTSERVICE_SUBEVENT_BASS_REMOTE_SCAN_STARTED;
-    little_endian_store_16(event, pos, bass_con_handle);
+    little_endian_store_16(event, pos, con_handle);
     pos += 2;
     (*bass_event_callback)(HCI_EVENT_PACKET, 0, event, sizeof(event));
 }
 
-static void bass_emit_remote_pa_sync_state(bass_source_t * source, uint8_t * buffer){
+static void bass_emit_remote_pa_sync_state(hci_con_handle_t con_handle, bass_source_t * source, uint8_t * buffer){
     btstack_assert(bass_event_callback != NULL);
     
     uint8_t event[20];
@@ -184,7 +198,7 @@ static void bass_emit_remote_pa_sync_state(bass_source_t * source, uint8_t * buf
     event[pos++] = HCI_EVENT_GATTSERVICE_META;
     event[pos++] = sizeof(event) - 2;
     event[pos++] = GATTSERVICE_SUBEVENT_BASS_PA_SYNC_STATE;
-    little_endian_store_16(event, pos, bass_con_handle);
+    little_endian_store_16(event, pos, con_handle);
     pos += 2;
     
     event[pos++] = source->source_id;
@@ -200,7 +214,7 @@ static void bass_emit_remote_pa_sync_state(bass_source_t * source, uint8_t * buf
     (*bass_event_callback)(HCI_EVENT_PACKET, 0, event, sizeof(event));
 }
 
-static void bass_emit_broadcast_code(uint8_t * buffer){
+static void bass_emit_broadcast_code(hci_con_handle_t con_handle, uint8_t * buffer){
     btstack_assert(bass_event_callback != NULL);
     
     uint8_t event[22];
@@ -208,7 +222,7 @@ static void bass_emit_broadcast_code(uint8_t * buffer){
     event[pos++] = HCI_EVENT_GATTSERVICE_META;
     event[pos++] = sizeof(event) - 2;
     event[pos++] = GATTSERVICE_SUBEVENT_BASS_BROADCAST_CODE;
-    little_endian_store_16(event, pos, bass_con_handle);
+    little_endian_store_16(event, pos, con_handle);
     pos += 2;
     event[pos++] = buffer[0];
     reverse_bytes(&buffer[1], &event[pos], 16);
@@ -217,7 +231,7 @@ static void bass_emit_broadcast_code(uint8_t * buffer){
     (*bass_event_callback)(HCI_EVENT_PACKET, 0, event, sizeof(event));
 }
 
-static void bass_emit_source_deleted(uint8_t source_id){
+static void bass_emit_source_deleted(hci_con_handle_t con_handle, uint8_t source_id){
     btstack_assert(bass_event_callback != NULL);
     
     uint8_t event[6];
@@ -225,7 +239,7 @@ static void bass_emit_source_deleted(uint8_t source_id){
     event[pos++] = HCI_EVENT_GATTSERVICE_META;
     event[pos++] = sizeof(event) - 2;
     event[pos++] = GATTSERVICE_SUBEVENT_BASS_SOURCE_REMOVED;
-    little_endian_store_16(event, pos, bass_con_handle);
+    little_endian_store_16(event, pos, con_handle);
     pos += 2;
     event[pos++] = source_id;
     (*bass_event_callback)(HCI_EVENT_PACKET, 0, event, sizeof(event));
@@ -422,7 +436,7 @@ static bool bass_remote_modify_source_buffer_valid(uint8_t *buffer, uint16_t buf
     return bass_pa_info_and_subgroups_valid(buffer+pos, buffer_size-pos);
 }
 
-static void bass_update_pa_info_and_subgroups(bass_source_t * source, uint8_t *buffer, uint16_t buffer_size){
+static void bass_update_pa_info_and_subgroups(uint8_t *buffer, uint16_t buffer_size, bass_source_t * source){
     uint8_t pos = 0;
     lea_pa_sync_t pa_sync = (lea_pa_sync_t)buffer[pos++]; 
     switch (pa_sync){
@@ -437,7 +451,6 @@ static void bass_update_pa_info_and_subgroups(bass_source_t * source, uint8_t *b
             btstack_assert(false);
             return;
     }
-    bass_emit_remote_pa_sync_state(source, buffer);
     
     source->pa_interval = little_endian_read_16(buffer, pos);
     pos += 2;
@@ -456,13 +469,8 @@ static void bass_update_pa_info_and_subgroups(bass_source_t * source, uint8_t *b
     }
 }
 
-static void bass_add_source(uint8_t *buffer, uint16_t buffer_size){
+static void bass_add_source(uint8_t *buffer, uint16_t buffer_size, bass_source_t * source){
     UNUSED(buffer_size);
-    bass_source_t * source = bass_find_empty_or_least_used_source();
-    if (source == NULL){
-        return;
-    }
-
     uint8_t pos = 0;
     source->address_type = (bd_addr_type_t)buffer[pos++];
     
@@ -474,7 +482,7 @@ static void bass_add_source(uint8_t *buffer, uint16_t buffer_size){
     source->broadcast_id = little_endian_read_24(buffer, pos);
     pos += 3;
 
-    bass_update_pa_info_and_subgroups(source, buffer+pos, buffer_size-pos);
+    bass_update_pa_info_and_subgroups(buffer+pos, buffer_size-pos, source);
 }
 
 static bool bass_pa_synchronized(bass_source_t * source){
@@ -504,23 +512,26 @@ static int broadcast_audio_scan_service_write_callback(hci_con_handle_t con_hand
         uint8_t  *remote_data = &buffer[1];
         uint16_t remote_data_size = buffer_size - 1;
         
-        uint8_t  source_id;
         bass_source_t * source;
 
         switch (opcode){
             case LEA_BASS_OPCODE_REMOTE_SCAN_STOPPED:
-                bass_emit_remote_scan_stoped();
+                bass_emit_remote_scan_stoped(con_handle);
                 break;
 
             case LEA_BASS_OPCODE_REMOTE_SCAN_STARTED:
-                bass_emit_remote_scan_started();
+                bass_emit_remote_scan_started(con_handle);
                 break;
 
             case LEA_BASS_OPCODE_ADD_SOURCE:
                 if (!bass_remote_add_source_buffer_valid(remote_data, remote_data_size)){
                     return ATT_ERROR_WRITE_REQUEST_REJECTED;
                 }
-                bass_add_source(remote_data, remote_data_size);
+                source = bass_find_empty_or_least_used_source();
+                btstack_assert(source != NULL);
+                
+                bass_add_source(remote_data, remote_data_size, source);
+                bass_emit_remote_pa_sync_state(con_handle, source, buffer);
                 break;
 
             case LEA_BASS_OPCODE_MODIFY_SOURCE:
@@ -528,27 +539,26 @@ static int broadcast_audio_scan_service_write_callback(hci_con_handle_t con_hand
                     return ATT_ERROR_WRITE_REQUEST_REJECTED;
                 }
                 
-                source_id = remote_data[0];
-                source = bass_find_source_for_source_id(source_id);
+                source = bass_find_source_for_source_id(remote_data[0]);
                 if (source == NULL){
                     return BASS_ERROR_CODE_INVALID_SOURCE_ID;
                 }
-                bass_update_pa_info_and_subgroups(source, remote_data+1, remote_data_size-1);
+                bass_update_pa_info_and_subgroups(remote_data+1, remote_data_size-1, source);
+                bass_emit_remote_pa_sync_state(con_handle, source, buffer);
                 break;
 
             case LEA_BASS_OPCODE_SET_BROADCAST_CODE:
                 if (remote_data_size < 17){
                     return ATT_ERROR_WRITE_REQUEST_REJECTED;
                 }
-                bass_emit_broadcast_code(remote_data);
+                bass_emit_broadcast_code(con_handle, remote_data);
                 break;
 
             case LEA_BASS_OPCODE_REMOVE_SOURCE:
                 if (remote_data_size < 1){
                     return ATT_ERROR_WRITE_REQUEST_REJECTED;
                 }
-                source_id = remote_data[0];
-                source = bass_find_source_for_source_id(source_id);
+                source = bass_find_source_for_source_id(remote_data[0]);
                 if (source == NULL){
                     return BASS_ERROR_CODE_INVALID_SOURCE_ID;
                 }
@@ -556,8 +566,9 @@ static int broadcast_audio_scan_service_write_callback(hci_con_handle_t con_hand
                 if (bass_pa_synchronized(source) || bass_bis_synchronized(source)){
                     break;
                 }
+                
                 memset(source, 0, sizeof(bass_source_t));
-                bass_emit_source_deleted(source_id);
+                bass_emit_source_deleted(con_handle, remote_data[0]);
                 break;
 
             default:
@@ -569,7 +580,7 @@ static int broadcast_audio_scan_service_write_callback(hci_con_handle_t con_hand
         bass_source_t * source = bass_find_receive_state_for_client_configuration_handle(attribute_handle);
         if (source){
             source->bass_receive_state_client_configuration = little_endian_read_16(buffer, 0);
-            bass_set_con_handle(con_handle, source->bass_receive_state_client_configuration);
+            bass_register_con_handle(con_handle, source->bass_receive_state_client_configuration);
         }
     }
     return 0;
@@ -585,25 +596,37 @@ static void broadcast_audio_scan_service_packet_handler(uint8_t packet_type, uin
     }
 
     hci_con_handle_t con_handle;
+    bass_remote_client_t * client;
+
     switch (hci_event_packet_get_type(packet)) {
         case HCI_EVENT_DISCONNECTION_COMPLETE:
             con_handle = hci_event_disconnection_complete_get_connection_handle(packet);
-            bass_sources_num = 0;
-            if (bass_con_handle == con_handle){
-                bass_server_reset_values();
+            
+            if (bass_clients_num == 0){
+                break;
             }
+
+            client = bass_find_client_for_con_handle(con_handle);
+            if (client == NULL){
+                break;
+            }
+            memset(client, 0, sizeof(bass_remote_client_t));
             break;
         default:
             break;
     }
 }
 
-void broadcast_audio_scan_service_server_init(uint8_t sources_num, bass_source_t * sources){
+void broadcast_audio_scan_service_server_init(const uint8_t sources_num, bass_source_t * sources, const uint8_t clients_num, bass_remote_client_t * clients){
     // get service handle range
+    btstack_assert(sources_num != 0);
+    btstack_assert(clients_num != 0);
+    
     uint16_t start_handle = 0;
     uint16_t end_handle   = 0xffff;
     int service_found = gatt_server_get_handle_range_for_service_with_uuid16(ORG_BLUETOOTH_SERVICE_BROADCAST_AUDIO_SCAN_SERVICE, &start_handle, &end_handle);
     btstack_assert(service_found != 0);
+
     UNUSED(service_found);
 
     bass_audio_scan_control_point_handle = gatt_server_get_value_handle_for_characteristic_with_uuid16(start_handle, end_handle, ORG_BLUETOOTH_CHARACTERISTIC_BROADCAST_AUDIO_SCAN_CONTROL_POINT);
@@ -632,6 +655,11 @@ void broadcast_audio_scan_service_server_init(uint8_t sources_num, bass_source_t
         start_handle = chr_client_configuration_handle + 1;
         bass_sources_num++;
     }
+
+    bass_clients_num = clients_num;
+    bass_clients = clients;
+    memset(bass_clients, 0, sizeof(bass_remote_client_t) * bass_clients_num);
+
     // register service with ATT Server
     broadcast_audio_scan_service.start_handle   = start_handle;
     broadcast_audio_scan_service.end_handle     = end_handle;
@@ -647,28 +675,63 @@ void broadcast_audio_scan_service_server_register_packet_handler(btstack_packet_
 }
 
 static void bass_service_can_send_now(void * context){
-    bass_source_t * source = (bass_source_t *) context;
-    
-    btstack_assert(source != NULL);
+    bass_remote_client_t * client = (bass_remote_client_t *) context;
+    btstack_assert(client != NULL);
 
-    uint8_t buffer[254];
-    uint16_t bytes_copied = bass_copy_source(source, 0, buffer, sizeof(buffer));
-    att_server_notify(bass_con_handle, source->bass_receive_state_handle, &buffer[0], bytes_copied);
-}
-
-void broadcast_audio_scan_service_server_set_pa_sync_state(uint8_t source_id, lea_pa_sync_state_t sync_state){
-    btstack_assert(sync_state >= LEA_PA_SYNC_STATE_RFU);
-
-    bass_source_t * source = bass_find_source_for_source_id(source_id);
-    if (!source){
-        return;
+    uint8_t source_index;
+    for (source_index = 0; source_index < bass_sources_num; source_index++){
+        if ((client->sources_to_notify & source_index) != 0){
+            uint8_t buffer[254];
+            uint16_t bytes_copied = bass_copy_source(&bass_sources[source_index], 0, buffer, sizeof(buffer));
+            att_server_notify(client->con_handle, bass_sources[source_index].bass_receive_state_handle, &buffer[0], bytes_copied);
+            return;
+        }
     }
 
-    source->pa_sync_state = sync_state;
-    if (source->bass_receive_state_client_configuration != 0){
-        source->source_callback.callback = &bass_service_can_send_now;
-        source->source_callback.context  = source;
-        att_server_register_can_send_now_callback(&source->source_callback, source->source_id);
+    uint8_t i;
+    for (i = 0; i < bass_clients_num; i++){
+        client = &bass_clients[i];
+
+        if (client->sources_to_notify != 0){
+            scheduled_tasks_callback.callback = &bass_service_can_send_now;
+            scheduled_tasks_callback.context  = (void*) client;
+            att_server_register_can_send_now_callback(&scheduled_tasks_callback, client->con_handle);
+            return;
+        }
+    }
+}
+
+static void bass_set_callback(uint8_t source_index){
+    // there is only one type of task: notify on source state change
+    // as task we register which source is changed, and the change will be propagated to all clients
+    uint8_t i;
+    for (i = 0; i < bass_clients_num; i++){
+        bass_remote_client_t * client = &bass_clients[i];
+
+        if (client->con_handle == HCI_CON_HANDLE_INVALID){
+            client->sources_to_notify &= ~source_index;
+            return;
+        }    
+        
+        uint8_t scheduled_tasks = client->sources_to_notify;
+        client->sources_to_notify |= source_index;
+
+        if (scheduled_tasks == 0){
+            scheduled_tasks_callback.callback = &bass_service_can_send_now;
+            scheduled_tasks_callback.context  = (void*) client;
+            att_server_register_can_send_now_callback(&scheduled_tasks_callback, client->con_handle);
+        }
+    }
+}
+
+void broadcast_audio_scan_service_server_set_pa_sync_state(uint8_t source_index, lea_pa_sync_state_t sync_state){
+    btstack_assert(source_index < bass_sources_num);
+
+    bass_source_t source = bass_sources[source_index];
+    source.pa_sync_state = sync_state;
+    
+    if (source.bass_receive_state_client_configuration != 0){
+        bass_set_callback(source_index);
     }
 }
 
