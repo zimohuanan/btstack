@@ -48,6 +48,7 @@ all: build-coverage/battery_service_test build-asan/battery_service_test 						\
 	 build-coverage/microphone_control_service_test build-asan/microphone_control_service_test 	\
 	 build-coverage/published_audio_capabilities_service_test build-asan/published_audio_capabilities_service_test 	\
 	 build-coverage/broadcast_audio_scan_service_test build-asan/broadcast_audio_scan_service_test 	\
+	 build-coverage/audio_stream_control_service_test build-asan/audio_stream_control_service_test 	\
 
 build-%:
 	mkdir -p $@
@@ -71,6 +72,9 @@ build-%/published_audio_capabilities_service_test.h: published_audio_capabilitie
 	python3 ${BTSTACK_ROOT}/tool/compile_gatt.py $< $@
 
 build-%/broadcast_audio_scan_service_test.h: broadcast_audio_scan_service_test.gatt| build-%
+	python3 ${BTSTACK_ROOT}/tool/compile_gatt.py $< $@
+
+build-%/audio_stream_control_service_test.h: audio_stream_control_service_test.gatt| build-%
 	python3 ${BTSTACK_ROOT}/tool/compile_gatt.py $< $@
 
 build-coverage/%.o: %.c | build-coverage
@@ -127,6 +131,12 @@ build-coverage/broadcast_audio_scan_service_test: build-coverage/broadcast_audio
 build-asan/broadcast_audio_scan_service_test: build-asan/broadcast_audio_scan_service_test.h ${COMMON_OBJ_ASAN} build-asan/broadcast_audio_scan_service_server.o  build-asan/broadcast_audio_scan_service_test.o  | build-asan
 	${CC} $(filter-out build-asan/broadcast_audio_scan_service_test.h,$^) ${LDFLAGS_ASAN} -o $@
 
+build-coverage/audio_stream_control_service_test: build-coverage/audio_stream_control_service_test.h ${COMMON_OBJ_COVERAGE} build-coverage/audio_stream_control_service_server.o build-coverage/audio_stream_control_service_test.o  | build-coverage
+	${CC} $(filter-out build-coverage/audio_stream_control_service_test.h,$^) ${LDFLAGS_COVERAGE} -o $@
+
+build-asan/audio_stream_control_service_test: build-asan/audio_stream_control_service_test.h ${COMMON_OBJ_ASAN} build-asan/audio_stream_control_service_server.o  build-asan/audio_stream_control_service_test.o  | build-asan
+	${CC} $(filter-out build-asan/audio_stream_control_service_test.h,$^) ${LDFLAGS_ASAN} -o $@
+
 test: all
 	build-asan/battery_service_test
 	build-asan/device_information_service_test
@@ -135,6 +145,7 @@ test: all
 	build-asan/microphone_control_service_test
 	build-asan/published_audio_capabilities_service_test
 	build-asan/broadcast_audio_scan_service_test
+	build-asan/audio_stream_control_service_test
 		
 coverage: all
 	rm -f build-coverage/*.gcda
@@ -145,6 +156,7 @@ coverage: all
 	build-asan/microphone_control_service_test
 	build-asan/published_audio_capabilities_service_test
 	build-asan/broadcast_audio_scan_service_test
+	build-asan/audio_stream_control_service_test
 
 clean:
 	rm -rf build-coverage build-asan
