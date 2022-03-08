@@ -48,50 +48,35 @@
 #include "ble/gatt-service/audio_stream_control_service_server.h"
 
 static att_service_handler_t    audio_stream_control_service;
-static hci_con_handle_t         ascs_con_handle;
 static btstack_packet_handler_t ascs_event_callback;
 
-// characteristic: SINK_ASE     
-static uint16_t  ascs_sink_ase_handle;
-static uint16_t  ascs_sink_ase_client_configuration_handle;
-static uint16_t  ascs_sink_ase_client_configuration;
-
-// characteristic: SOURCE_ASE 
-static uint16_t  ascs_source_ase_handle;
-static uint16_t  ascs_source_ase_client_configuration_handle;
-static uint16_t  ascs_source_ase_client_configuration;
+static ascs_streamendpoint_t * ascs_streamendpoints;
+static uint8_t  ascs_streamendpoints_num = 0;
+static ascs_remote_client_t * ascs_clients;
+static uint8_t ascs_clients_num = 0;
+static uint8_t ascs_streamendpoint_id_counter = 0;
 
 // characteristic: ASE_CONTROL_POINT
 static uint16_t  ascs_ase_control_point_handle;
 
-static void audio_stream_control_service_server_reset_values(void){
-    ascs_con_handle = HCI_CON_HANDLE_INVALID;
-    ascs_sink_ase_client_configuration = 0;
-    ascs_source_ase_client_configuration = 0;
-}
-
-static void ascs_set_con_handle(hci_con_handle_t con_handle, uint16_t configuration){
-    ascs_con_handle = (configuration == 0) ? HCI_CON_HANDLE_INVALID : con_handle;
-}
-
 static uint16_t audio_stream_control_service_read_callback(hci_con_handle_t con_handle, uint16_t attribute_handle, uint16_t offset, uint8_t * buffer, uint16_t buffer_size){
     UNUSED(con_handle);
     
-    if (attribute_handle == ascs_sink_ase_handle){
-        // TODO
-    }
+    // if (attribute_handle == ascs_sink_ase_handle){
+    //     // TODO
+    // }
 
-    if (attribute_handle == ascs_source_ase_handle){
-        // TODO
-    }
+    // if (attribute_handle == ascs_source_ase_handle){
+    //     // TODO
+    // }
 
-    if (attribute_handle == ascs_sink_ase_client_configuration_handle){
-        return att_read_callback_handle_little_endian_16(ascs_sink_ase_client_configuration, offset, buffer, buffer_size);
-    }
+    // if (attribute_handle == ascs_sink_ase_client_configuration_handle){
+    //     return att_read_callback_handle_little_endian_16(ascs_sink_ase_client_configuration, offset, buffer, buffer_size);
+    // }
     
-    if (attribute_handle == ascs_source_ase_client_configuration_handle){
-        return att_read_callback_handle_little_endian_16(ascs_source_ase_client_configuration, offset, buffer, buffer_size);
-    }
+    // if (attribute_handle == ascs_source_ase_client_configuration_handle){
+    //     return att_read_callback_handle_little_endian_16(ascs_source_ase_client_configuration, offset, buffer, buffer_size);
+    // }
 
     return 0;
 }
@@ -105,15 +90,15 @@ static int audio_stream_control_service_write_callback(hci_con_handle_t con_hand
         // TODO
     }
 
-    else if (attribute_handle == ascs_sink_ase_client_configuration_handle){
-        ascs_sink_ase_client_configuration = little_endian_read_16(buffer, 0);
-        ascs_set_con_handle(con_handle, ascs_sink_ase_client_configuration);
-    }
+    // else if (attribute_handle == ascs_sink_ase_client_configuration_handle){
+    //     ascs_sink_ase_client_configuration = little_endian_read_16(buffer, 0);
+    //     ascs_set_con_handle(con_handle, ascs_sink_ase_client_configuration);
+    // }
 
-    else if (attribute_handle == ascs_source_ase_client_configuration_handle){
-        ascs_source_ase_client_configuration = little_endian_read_16(buffer, 0);
-        ascs_set_con_handle(con_handle, ascs_source_ase_client_configuration);
-    }
+    // else if (attribute_handle == ascs_source_ase_client_configuration_handle){
+    //     ascs_source_ase_client_configuration = little_endian_read_16(buffer, 0);
+    //     ascs_set_con_handle(con_handle, ascs_source_ase_client_configuration);
+    // }
     return 0;
 }
 
@@ -130,16 +115,57 @@ static void audio_stream_control_service_packet_handler(uint8_t packet_type, uin
     switch (hci_event_packet_get_type(packet)) {
         case HCI_EVENT_DISCONNECTION_COMPLETE:
             con_handle = hci_event_disconnection_complete_get_connection_handle(packet);
-            if (ascs_con_handle == con_handle){
-                audio_stream_control_service_server_reset_values();
-            }
+            
             break;
         default:
             break;
     }
 }
 
-void audio_stream_control_service_server_init(void){
+static uint8_t ascs_get_next_streamendpoint_id(void){
+    uint8_t next_streamendpoint_id;
+    if (ascs_streamendpoint_id_counter == 0xff) {
+        next_streamendpoint_id = 1;
+    } else {
+        next_streamendpoint_id = ascs_streamendpoint_id_counter + 1;
+    }
+    ascs_streamendpoint_id_counter = next_streamendpoint_id;
+    return next_streamendpoint_id;
+}
+
+static void ascs_streamenpoint_init(const uint8_t streamendpoints_num, ascs_streamendpoint_t * streamendpoints, uint16_t start_handle, uint16_t end_handle, ascs_role_t role){
+    uint16_t chr_uuid16 = ORG_BLUETOOTH_CHARACTERISTIC_SINK_ASE;
+    if (role == ASCS_ROLE_SOURCE){
+        chr_uuid16 = ORG_BLUETOOTH_CHARACTERISTIC_SOURCE_ASE;
+    }
+
+    // search streamendpoints
+    while ( (start_handle < end_handle) && (ascs_streamendpoints_num < streamendpoints_num)) {
+        uint16_t chr_value_handle = gatt_server_get_value_handle_for_characteristic_with_uuid16(start_handle, end_handle, chr_uuid16);
+        uint16_t chr_client_configuration_handle = gatt_server_get_client_configuration_handle_for_characteristic_with_uuid16(start_handle, end_handle, chr_uuid16);
+        
+        if (chr_value_handle == 0){
+            break;
+        }
+        ascs_streamendpoint_t * streamendpoint = &ascs_streamendpoints[ascs_streamendpoints_num];
+        memset(streamendpoint, 0, sizeof(ascs_streamendpoint_t));
+
+        streamendpoint->role = role;
+        streamendpoint->ase_id = ascs_get_next_streamendpoint_id();
+
+        streamendpoint->value_handle = chr_value_handle;
+        streamendpoint->client_configuration_handle = chr_client_configuration_handle;
+        streamendpoint->client_configuration = 0;
+        
+        start_handle = chr_client_configuration_handle + 1;
+        ascs_streamendpoints_num++;
+    }
+}
+
+void audio_stream_control_service_server_init(const uint8_t streamendpoints_num, ascs_streamendpoint_t * streamendpoints, const uint8_t clients_num, ascs_remote_client_t * clients){
+    btstack_assert(streamendpoints_num != 0);
+    btstack_assert(clients_num != 0);
+
     // get service handle range
     uint16_t start_handle = 0;
     uint16_t end_handle   = 0xffff;
@@ -147,13 +173,16 @@ void audio_stream_control_service_server_init(void){
     btstack_assert(service_found != 0);
     UNUSED(service_found);
 
-    audio_stream_control_service_server_reset_values();
+    ascs_streamendpoints_num = 0;
+    ascs_streamendpoint_id_counter = 0;
+    ascs_streamendpoints = streamendpoints;
 
-    ascs_sink_ase_handle = gatt_server_get_value_handle_for_characteristic_with_uuid16(start_handle, end_handle, ORG_BLUETOOTH_CHARACTERISTIC_SINK_ASE);;
-    ascs_sink_ase_client_configuration_handle = gatt_server_get_client_configuration_handle_for_characteristic_with_uuid16(start_handle, end_handle, ORG_BLUETOOTH_CHARACTERISTIC_SINK_ASE);;
+    ascs_streamenpoint_init(streamendpoints_num, streamendpoints, start_handle, end_handle, ASCS_ROLE_SINK);
+    ascs_streamenpoint_init(streamendpoints_num, streamendpoints, start_handle, end_handle, ASCS_ROLE_SOURCE);
 
-    ascs_source_ase_handle = gatt_server_get_value_handle_for_characteristic_with_uuid16(start_handle, end_handle, ORG_BLUETOOTH_CHARACTERISTIC_SOURCE_ASE);;
-    ascs_source_ase_client_configuration_handle = gatt_server_get_client_configuration_handle_for_characteristic_with_uuid16(start_handle, end_handle, ORG_BLUETOOTH_CHARACTERISTIC_SOURCE_ASE);;
+    ascs_clients_num = clients_num;
+    ascs_clients = clients;
+    memset(ascs_clients, 0, sizeof(ascs_remote_client_t) * ascs_clients_num);
 
     ascs_ase_control_point_handle = gatt_server_get_value_handle_for_characteristic_with_uuid16(start_handle, end_handle, ORG_BLUETOOTH_CHARACTERISTIC_ASE_CONTROL_POINT);;
 
@@ -171,4 +200,7 @@ void audio_stream_control_service_server_init(void){
 void audio_stream_control_service_server_register_packet_handler(btstack_packet_handler_t callback){
     btstack_assert(callback != NULL);
     ascs_event_callback = callback;
+}
+
+void audio_stream_control_service_server_deinit(void){
 }
