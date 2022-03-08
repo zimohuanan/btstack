@@ -25,13 +25,13 @@
 #include "broadcast_audio_scan_service_test.h"
 #include "mock_att_server.h"
 
+#define BASS_NUM_CLIENTS 1
 #define BASS_NUM_SOURCES 2
+
 #define BASS_UNDEFINED_EVENT    0xFF
 
-#define BASS_NUM_CLIENTS 1
-
-static bass_source_t bass_sources[2];
-static bass_remote_client_t bass_clients[1];
+static bass_source_t bass_sources[BASS_NUM_SOURCES];
+static bass_remote_client_t bass_clients[BASS_NUM_CLIENTS];
 
 static uint8_t expected_scan_active = 0;
 static uint8_t received_event = 0;
