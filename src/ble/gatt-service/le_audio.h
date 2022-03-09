@@ -49,6 +49,8 @@
 extern "C" {
 #endif
 
+#define LEA_METADATA_MAX_LENGTH                            20
+
 // Generic Audio/Audio Location Definitions/Bitmap
 #define LEA_AUDIO_LOCATION_NOT_ALLOWED             0x00000000
 #define LEA_AUDIO_LOCATION_FRONT_LEFT              0x00000001

@@ -59,7 +59,6 @@ extern "C" {
 #define BASS_ERROR_CODE_OPCODE_NOT_SUPPORTED            0x80
 #define BASS_ERROR_CODE_INVALID_SOURCE_ID               0x81
 
-#define BASS_METADATA_MAX_LENGTH                          20
 #define BASS_SUBGROUPS_MAX_NUM                             4
 
 typedef enum {
@@ -83,7 +82,7 @@ typedef struct {
     uint32_t  bis_sync_state;
 
     uint8_t   metadata_length;
-    uint8_t   metadata[BASS_METADATA_MAX_LENGTH];
+    uint8_t   metadata[LEA_METADATA_MAX_LENGTH];
 } bass_subgroup_t;
 
 // memory for list of these structs is allocated by the application
