@@ -49,6 +49,7 @@
 extern "C" {
 #endif
 
+#define LEA_MAX_CODEC_CONFIG_SIZE                          10
 #define LEA_METADATA_MAX_LENGTH                            20
 
 // Generic Audio/Audio Location Definitions/Bitmap
@@ -98,6 +99,17 @@ extern "C" {
 #define LEA_CONTEXT_TYPE_ALERTS                    0x0400 // Alarms and timers; immediate alerts, for example, in a critical battery alarm, timer expiry or alarm clock, toaster, cooker, kettle, microwave, etc.
 #define LEA_CONTEXT_TYPE_EMERGENCY_ALARM           0x0800 //Emergency alarm Emergency sounds, for example, fire alarms or other urgent alerts
 #define LEA_CONTEXT_TYPE_RFU                       0xF000
+
+
+// ASCS: Framing for Codec Configured State 
+#define LEA_UNFRAMED_ISOAL_PDUS_SUPPORTED             0x00
+#define LEA_UNFRAMED_ISOAL_PDUS_NOT_SUPPORTED         0x01
+
+// ASCS: Preferred PHY for Codec Configured State 
+#define LEA_PHY_NO_PREFERENCE                         0x00
+#define LEA_PHY_1M                                    0x01
+#define LEA_PHY_2M                                    0x02
+#define LEA_PHY_CODED                                 0x04
 
 typedef enum {
     LEA_CODEC_SPECIFIC_CAPABILITY_TYPE_SAMPLING_FREQUENCY = 0x01,
