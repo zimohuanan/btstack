@@ -44,6 +44,7 @@
 #define AUDIO_STREAM_CONTROL_SERVICE_SERVER_H
 
 #include <stdint.h>
+#include "le_audio.h"
 
 #if defined __cplusplus
 extern "C" {
@@ -62,6 +63,49 @@ extern "C" {
 #define ASCS_CLIENTS_MAX_NUM 5
 #define ASCS_STREAMENDPOINT_STATE_MAX_SIZE 5
 
+#define ASCS_ERROR_CODE_SUCCESS                                                     0x00
+#define ASCS_ERROR_CODE_UNSUPPORTED_OPCODE                                          0x01
+#define ASCS_ERROR_CODE_INVALID_LENGTH                                              0x02
+#define ASCS_ERROR_CODE_INVALID_ASE_ID                                              0x03
+#define ASCS_ERROR_CODE_INVALID_ASE_STATE_MACHINE_TRANSITION                        0x04
+#define ASCS_ERROR_CODE_INVALID_ASE_DIRECTION                                       0x05
+#define ASCS_ERROR_CODE_UNSUPPORTED_AUDIO_CAPABILITIES                              0x06
+#define ASCS_ERROR_CODE_UNSUPPORTED_CONFIGURATION_PARAMETER_VALUE                   0x07
+#define ASCS_ERROR_CODE_REJECTED_CONFIGURATION_PARAMETER_VALUE                      0x08
+#define ASCS_ERROR_CODE_INVALID_CONFIGURATION_PARAMETER_VALUE                       0x09
+#define ASCS_ERROR_CODE_UNSUPPORTED_METADATA                                        0x0A
+#define ASCS_ERROR_CODE_REJECTED_METADATA                                           0x0B
+#define ASCS_ERROR_CODE_INVALID_METADATA                                            0x0C
+#define ASCS_ERROR_CODE_INSUFFICIENT_RESOURCES                                      0x0D
+#define ASCS_ERROR_CODE_UNSPECIFIED_ERROR                                           0x0E
+#define ASCS_ERROR_CODE_RFU                                                         0x0D
+
+
+#define ASCS_REJECT_REASON_CODEC_ID                                                 0x01
+#define ASCS_REJECT_REASON_CODEC_SPECIFIC_CONFIGURATION                             0x02
+#define ASCS_REJECT_REASON_SDU_INTERVAL                                             0x03
+#define ASCS_REJECT_REASON_FRAMING                                                  0x04
+#define ASCS_REJECT_REASON_PHY                                                      0x05
+#define ASCS_REJECT_REASON_MAXIMUM_SDU_SIZE                                         0x06
+#define ASCS_REJECT_REASON_RETRANSMISSION_NUMBER                                    0x07
+#define ASCS_REJECT_REASON_MAX_TRANSPORT_LATENCY                                    0x08
+#define ASCS_REJECT_REASON_PRESENTATION_DELAY                                       0x09
+#define ASCS_REJECT_REASON_INVALID_ASE_CIS_MAPPING                                  0x0A
+#define ASCS_REJECT_REASON_RFU                                                      0x0B
+
+typedef enum {
+    ASCS_OPCODE_CONFIG_CODEC = 0x01,
+    ASCS_OPCODE_CONFIG_QOS,
+    ASCS_OPCODE_ENABLE,
+    ASCS_OPCODE_RECEIVER_START_READY,
+    ASCS_OPCODE_DISABLE,
+    ASCS_OPCODE_RECEIVER_STOP_READY, 
+    ASCS_OPCODE_UPDATE_METADATA,
+    ASCS_OPCODE_RELEASE,
+    ASCS_OPCODE_RELEASED,
+    ASCS_OPCODE_RFU
+} ascs_opcode_t;
+
 typedef enum {
     ASCS_ROLE_SINK = 0,
     ASCS_ROLE_SOURCE
@@ -77,6 +121,39 @@ typedef enum {
     ASCS_STATE_RELEASING,
     ASCS_STATE_RFU,
 } ascs_state_t;
+
+typedef struct {
+    uint8_t  framing;                                   // see LEA_UNFRAMED_ISOAL_PDUS_* in le_audio.h
+    uint8_t  preferred_phy;                             // see LEA_PHY_* in le_audio.h
+    uint8_t  preferred_retransmission_number;           // 0x00-0xFF
+    uint16_t max_transport_latency_ms;                  // 0x0005–0x0FA0
+    uint32_t presentation_delay_min_us;                 // 3 byte, microsec
+    uint32_t presentation_delay_max_us;                 // 3 byte, microsec
+    uint32_t preferred_presentation_delay_min_us;       // 3 byte, microsec, 0x00 - no preference
+    uint32_t preferred_presentation_delay_max_us;       // 3 byte, microsec, 0x00 - no preference
+    lea_codec_id_t codec_id;
+    uint8_t  codec_specific_configuration_length;
+    uint8_t  codec_specific_configuration[LEA_MAX_CODEC_CONFIG_SIZE];
+} ascs_codec_configuration_t;
+
+typedef struct {
+    uint8_t  cig_id;
+    uint8_t  cis_id;
+    uint8_t  sdu_interval;                              // 0x0000FF–0x0FFFFF
+    uint8_t  framing;                                   // 0 - unframed, 1 - framed
+    uint8_t  phy;                                       // see LEA_PHY_* in le_audio.h
+    uint16_t max_sdu;                                   // 0x00–0xFFF
+    uint16_t max_transport_latency;                     // 0x0005–0x0FA0
+    uint32_t presentation_delay_us;                     // 3 byte, microsec
+} ascs_qos_configuration_t;
+
+typedef struct {
+    uint8_t  cig_id;
+    uint8_t  cis_id;
+    uint8_t  metadata_length;                              
+    uint8_t  metadata[LEA_METADATA_MAX_LENGTH];
+} ascs_metadata_configuration_t;
+
 
 // The ASCS Server must expose at least one Audio Stream Endpoint (ASE) for every Audio Stream it is capable of supporting.
 // For each ASE, the ASCS Server maintains an instance of a state machine for each connected client. The state of an ASE is
