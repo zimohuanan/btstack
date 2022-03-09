@@ -190,7 +190,7 @@ TEST(BROADCAST_AUDIO_SCAN_SERVICE_SERVER, invalid_write_control_point_opcode_not
     CHECK_EQUAL(ATT_ERROR_WRITE_REQUEST_REJECTED, response); 
 
     // wrong opcode
-    write_buffer[0] = (uint8_t)LEA_BASS_OPCODE_RFU;
+    write_buffer[0] = (uint8_t)BASS_OPCODE_RFU;
     response = mock_att_service_write_callback(con_handle, bass_audio_scan_control_point_handle, ATT_TRANSACTION_MODE_NONE, 0, write_buffer, write_buffer_size);
     CHECK_EQUAL(ATT_ERROR_WRITE_REQUEST_REJECTED, response);    
 }
@@ -203,13 +203,13 @@ TEST(BROADCAST_AUDIO_SCAN_SERVICE_SERVER, write_control_point_scan){
 
     broadcast_audio_scan_service_server_register_packet_handler(&packet_handler);
 
-    write_buffer[0] = (uint8_t)LEA_BASS_OPCODE_REMOTE_SCAN_STOPPED;
+    write_buffer[0] = (uint8_t)BASS_OPCODE_REMOTE_SCAN_STOPPED;
     expected_scan_active = 0;
     response = mock_att_service_write_callback(con_handle, bass_audio_scan_control_point_handle, ATT_TRANSACTION_MODE_NONE, 0, write_buffer, sizeof(write_buffer));
     CHECK_EQUAL(0, response); 
     CHECK_EQUAL(GATTSERVICE_SUBEVENT_BASS_REMOTE_SCAN_STOPED, received_event); 
 
-    write_buffer[0] = (uint8_t)LEA_BASS_OPCODE_REMOTE_SCAN_STARTED;
+    write_buffer[0] = (uint8_t)BASS_OPCODE_REMOTE_SCAN_STARTED;
     expected_scan_active = 1;
     response = mock_att_service_write_callback(con_handle, bass_audio_scan_control_point_handle, ATT_TRANSACTION_MODE_NONE, 0, write_buffer, sizeof(write_buffer));
     CHECK_EQUAL(0, response); 
@@ -232,7 +232,7 @@ TEST(BROADCAST_AUDIO_SCAN_SERVICE_SERVER, write_control_point_add_source){
     
     broadcast_audio_scan_service_server_register_packet_handler(&packet_handler);
 
-    write_buffer[0] = (uint8_t)LEA_BASS_OPCODE_ADD_SOURCE;
+    write_buffer[0] = (uint8_t)BASS_OPCODE_ADD_SOURCE;
     
     // buffer size < 15
     // no event is emitted
@@ -291,14 +291,14 @@ TEST(BROADCAST_AUDIO_SCAN_SERVICE_SERVER, write_control_point_add_source){
     CHECK_EQUAL(ATT_ERROR_WRITE_REQUEST_REJECTED, response); 
     CHECK_EQUAL(0, received_event);
 
-    // num_subgroups valid, metadata_length exceeds BASS_METADATA_MAX_LENGTH
-    write_buffer[20] = BASS_METADATA_MAX_LENGTH + 1;
+    // num_subgroups valid, metadata_length exceeds LEA_METADATA_MAX_LENGTH
+    write_buffer[20] = LEA_METADATA_MAX_LENGTH + 1;
     response = mock_att_service_write_callback(con_handle, bass_audio_scan_control_point_handle, ATT_TRANSACTION_MODE_NONE, 0, write_buffer, 22);
     CHECK_EQUAL(ATT_ERROR_WRITE_REQUEST_REJECTED, response); 
     CHECK_EQUAL(0, received_event);
 
-    // num_subgroups valid, metadata_length exceeds BASS_METADATA_MAX_LENGTH
-    write_buffer[20] = BASS_METADATA_MAX_LENGTH + 1;
+    // num_subgroups valid, metadata_length exceeds LEA_METADATA_MAX_LENGTH
+    write_buffer[20] = LEA_METADATA_MAX_LENGTH + 1;
     response = mock_att_service_write_callback(con_handle, bass_audio_scan_control_point_handle, ATT_TRANSACTION_MODE_NONE, 0, write_buffer, 22);
     CHECK_EQUAL(ATT_ERROR_WRITE_REQUEST_REJECTED, response); 
     CHECK_EQUAL(0, received_event);
@@ -343,7 +343,7 @@ TEST(BROADCAST_AUDIO_SCAN_SERVICE_SERVER, write_control_point_set_broadcast_code
     memset(write_buffer, 0xAA, sizeof(write_buffer));
     broadcast_audio_scan_service_server_register_packet_handler(&packet_handler);
 
-    write_buffer[0] = (uint8_t)LEA_BASS_OPCODE_SET_BROADCAST_CODE;
+    write_buffer[0] = (uint8_t)BASS_OPCODE_SET_BROADCAST_CODE;
     write_buffer[1] = 1; // source_id
 
     response = mock_att_service_write_callback(con_handle, bass_audio_scan_control_point_handle, ATT_TRANSACTION_MODE_NONE, 0, write_buffer, sizeof(write_buffer));
@@ -353,11 +353,11 @@ TEST(BROADCAST_AUDIO_SCAN_SERVICE_SERVER, write_control_point_set_broadcast_code
 
 
 TEST(BROADCAST_AUDIO_SCAN_SERVICE_SERVER, write_control_point_modify_source){
-    // write_buffer[0] = (uint8_t)LEA_BASS_OPCODE_MODIFY_SOURCE;
+    // write_buffer[0] = (uint8_t)BASS_OPCODE_MODIFY_SOURCE;
 }
 
 TEST(BROADCAST_AUDIO_SCAN_SERVICE_SERVER, write_control_point_remove_source){
-    // write_buffer[0] = (uint8_t)LEA_BASS_OPCODE_SET_BROADCAST_CODE;
+    // write_buffer[0] = (uint8_t)BASS_OPCODE_SET_BROADCAST_CODE;
 }
 
 int main (int argc, const char * argv[]){

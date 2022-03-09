@@ -62,6 +62,16 @@ extern "C" {
 #define BASS_METADATA_MAX_LENGTH                          20
 #define BASS_SUBGROUPS_MAX_NUM                             4
 
+typedef enum {
+    BASS_OPCODE_REMOTE_SCAN_STOPPED = 0x00,
+    BASS_OPCODE_REMOTE_SCAN_STARTED,
+    BASS_OPCODE_ADD_SOURCE,
+    BASS_OPCODE_MODIFY_SOURCE,
+    BASS_OPCODE_SET_BROADCAST_CODE,
+    BASS_OPCODE_REMOVE_SOURCE, 
+    BASS_OPCODE_RFU
+} bass_opcode_t;
+
 /* API_START */
 
 typedef struct {

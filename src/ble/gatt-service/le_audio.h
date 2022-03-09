@@ -158,16 +158,6 @@ typedef enum {
     LEA_BIG_ENCRYPTION_RFU
 } lea_big_encryption_t;
 
-typedef enum {
-   LEA_BASS_OPCODE_REMOTE_SCAN_STOPPED = 0x00,
-   LEA_BASS_OPCODE_REMOTE_SCAN_STARTED,
-   LEA_BASS_OPCODE_ADD_SOURCE,
-   LEA_BASS_OPCODE_MODIFY_SOURCE,
-   LEA_BASS_OPCODE_SET_BROADCAST_CODE,
-   LEA_BASS_OPCODE_REMOVE_SOURCE, 
-   LEA_BASS_OPCODE_RFU
-} lea_bass_opcode_t;
-
 #if defined __cplusplus
 }
 #endif

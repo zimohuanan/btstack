@@ -386,8 +386,8 @@ static bool bass_pa_info_and_subgroups_valid(uint8_t *buffer, uint16_t buffer_si
         }
         
         uint8_t metadata_length = buffer[pos++];
-        if (metadata_length > BASS_METADATA_MAX_LENGTH){
-            log_info("Metadata length %u exceedes maximum %u", metadata_length, BASS_METADATA_MAX_LENGTH);
+        if (metadata_length > LEA_METADATA_MAX_LENGTH){
+            log_info("Metadata length %u exceedes maximum %u", metadata_length, LEA_METADATA_MAX_LENGTH);
             return false;
         }    
         // metadata
@@ -508,22 +508,22 @@ static int broadcast_audio_scan_service_write_callback(hci_con_handle_t con_hand
             return ATT_ERROR_WRITE_REQUEST_REJECTED;
         }
 
-        lea_bass_opcode_t opcode = (lea_bass_opcode_t)buffer[0];
+        bass_opcode_t opcode = (bass_opcode_t)buffer[0];
         uint8_t  *remote_data = &buffer[1];
         uint16_t remote_data_size = buffer_size - 1;
         
         bass_source_t * source;
 
         switch (opcode){
-            case LEA_BASS_OPCODE_REMOTE_SCAN_STOPPED:
+            case BASS_OPCODE_REMOTE_SCAN_STOPPED:
                 bass_emit_remote_scan_stoped(con_handle);
                 break;
 
-            case LEA_BASS_OPCODE_REMOTE_SCAN_STARTED:
+            case BASS_OPCODE_REMOTE_SCAN_STARTED:
                 bass_emit_remote_scan_started(con_handle);
                 break;
 
-            case LEA_BASS_OPCODE_ADD_SOURCE:
+            case BASS_OPCODE_ADD_SOURCE:
                 if (!bass_remote_add_source_buffer_valid(remote_data, remote_data_size)){
                     return ATT_ERROR_WRITE_REQUEST_REJECTED;
                 }
@@ -534,7 +534,7 @@ static int broadcast_audio_scan_service_write_callback(hci_con_handle_t con_hand
                 bass_emit_remote_pa_sync_state(con_handle, source, buffer);
                 break;
 
-            case LEA_BASS_OPCODE_MODIFY_SOURCE:
+            case BASS_OPCODE_MODIFY_SOURCE:
                 if (!bass_remote_modify_source_buffer_valid(remote_data, remote_data_size)){
                     return ATT_ERROR_WRITE_REQUEST_REJECTED;
                 }
@@ -547,14 +547,14 @@ static int broadcast_audio_scan_service_write_callback(hci_con_handle_t con_hand
                 bass_emit_remote_pa_sync_state(con_handle, source, buffer);
                 break;
 
-            case LEA_BASS_OPCODE_SET_BROADCAST_CODE:
+            case BASS_OPCODE_SET_BROADCAST_CODE:
                 if (remote_data_size < 17){
                     return ATT_ERROR_WRITE_REQUEST_REJECTED;
                 }
                 bass_emit_broadcast_code(con_handle, remote_data);
                 break;
 
-            case LEA_BASS_OPCODE_REMOVE_SOURCE:
+            case BASS_OPCODE_REMOVE_SOURCE:
                 if (remote_data_size < 1){
                     return ATT_ERROR_WRITE_REQUEST_REJECTED;
                 }
