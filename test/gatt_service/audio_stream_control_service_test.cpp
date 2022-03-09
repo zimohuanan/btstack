@@ -25,10 +25,10 @@
 #include "audio_stream_control_service_test.h"
 #include "mock_att_server.h"
 
-#define ASCS_NUM_STREAMENDPOINTS 5
+#define ASCS_NUM_STREAMENDPOINT_CHARACTERISTICS 5
 #define ASCS_NUM_CLIENTS 3
 
-static ascs_streamendpoint_t ascs_streamendpoints[ASCS_NUM_STREAMENDPOINTS];
+static ascs_streamendpoint_characteristic_t ascs_streamendpoint_characteristics[ASCS_NUM_STREAMENDPOINT_CHARACTERISTICS];
 static ascs_remote_client_t ascs_clients[ASCS_NUM_CLIENTS];
 
 TEST_GROUP(AUDIO_STREAM_CONTROL_SERVICE_SERVER){ 
@@ -55,13 +55,13 @@ TEST(AUDIO_STREAM_CONTROL_SERVICE_SERVER, lookup_attribute_handles){
     uint16_t expected_streamendpoints_num = 5;
     uint16_t streamendpoints_num = 0;
     
-    audio_stream_control_service_server_init(ASCS_NUM_STREAMENDPOINTS, ascs_streamendpoints, ASCS_NUM_CLIENTS, ascs_clients);
+    audio_stream_control_service_server_init(ASCS_NUM_STREAMENDPOINT_CHARACTERISTICS, ascs_streamendpoint_characteristics, ASCS_NUM_CLIENTS, ascs_clients);
 
     uint16_t i;
-    for (i = 0; i < ASCS_NUM_STREAMENDPOINTS; i++){
-        ascs_streamendpoint_t streamendpoint = ascs_streamendpoints[i];
-        CHECK(streamendpoint.value_handle != 0);
-        CHECK(streamendpoint.client_configuration_handle != 0);
+    for (i = 0; i < ASCS_NUM_STREAMENDPOINT_CHARACTERISTICS; i++){
+        ascs_streamendpoint_characteristic_t streamendpoint_chr = ascs_streamendpoint_characteristics[i];
+        CHECK(streamendpoint_chr.value_handle != 0);
+        CHECK(streamendpoint_chr.client_configuration_handle != 0);
         streamendpoints_num++;
     }
     CHECK_EQUAL(expected_streamendpoints_num, streamendpoints_num);

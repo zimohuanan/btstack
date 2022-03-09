@@ -58,37 +58,66 @@ extern "C" {
  * To use with your application, add `#import <audio_stream_control_service.gatt>` to your .gatt file. 
  */
 
+#define ASCS_STREAMENDPOINTS_MAX_NUM 5
+#define ASCS_CLIENTS_MAX_NUM 5
+#define ASCS_STREAMENDPOINT_STATE_MAX_SIZE 5
+
 typedef enum {
     ASCS_ROLE_SINK = 0,
     ASCS_ROLE_SOURCE
 } ascs_role_t;
 
+typedef enum {
+    ASCS_STATE_IDLE = 0x00,
+    ASCS_STATE_CODEC_CONFIGURED,
+    ASCS_STATE_QOS_CONFIGURED,
+    ASCS_STATE_ENABLING,
+    ASCS_STATE_STREAMING,
+    ASCS_STATE_DISABLING,
+    ASCS_STATE_RELEASING,
+    ASCS_STATE_RFU,
+} ascs_state_t;
+
+// The ASCS Server must expose at least one Audio Stream Endpoint (ASE) for every Audio Stream it is capable of supporting.
+// For each ASE, the ASCS Server maintains an instance of a state machine for each connected client. The state of an ASE is
+// controlled by each client, although in some cases the Server can autonomously change the state of an ASE.
+
 typedef struct {
+    uint8_t  ase_id;
     ascs_role_t role;
 
-    uint8_t  ase_id;
-
+    // prefered server values
+    
     uint16_t value_handle;
     uint16_t client_configuration_handle;
     uint16_t client_configuration;
+} ascs_streamendpoint_characteristic_t;
+
+typedef struct {
+    ascs_streamendpoint_characteristic_t * ase_characteristic;
+    ascs_state_t state;
 } ascs_streamendpoint_t;
 
 typedef struct {
     hci_con_handle_t con_handle;
-    uint16_t sources_to_notify;
-    uint16_t sinks_to_notify;
+    ascs_streamendpoint_t streamendpoints[ASCS_STREAMENDPOINTS_MAX_NUM];
 } ascs_remote_client_t;
+
 
 /**
  * @brief Init Audio Stream Sontrol Service Server with ATT DB
  */
-void audio_stream_control_service_server_init(const uint8_t streamendpoints_num, ascs_streamendpoint_t * streamendpoints, const uint8_t clients_num, ascs_remote_client_t * clients);
+void audio_stream_control_service_server_init(
+    const uint8_t streamendpoint_characteristics_num, ascs_streamendpoint_characteristic_t * streamendpoint_characteristics, 
+    const uint8_t clients_num, ascs_remote_client_t * clients);
 
 /**
  * @brief Register callback.
  * @param callback
  */
 void audio_stream_control_service_server_register_packet_handler(btstack_packet_handler_t callback);
+
+// void audio_stream_control_service_server_set_ase_state(void);
 
 void audio_stream_control_service_server_deinit(void);
 

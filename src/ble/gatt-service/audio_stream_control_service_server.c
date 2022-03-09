@@ -50,14 +50,25 @@
 static att_service_handler_t    audio_stream_control_service;
 static btstack_packet_handler_t ascs_event_callback;
 
-static ascs_streamendpoint_t * ascs_streamendpoints;
-static uint8_t  ascs_streamendpoints_num = 0;
+static ascs_streamendpoint_characteristic_t * ascs_streamendpoint_characteristics;
+static uint8_t  ascs_streamendpoint_chr_num = 0;
 static ascs_remote_client_t * ascs_clients;
 static uint8_t ascs_clients_num = 0;
-static uint8_t ascs_streamendpoint_id_counter = 0;
+static uint8_t ascs_streamendpoint_characteristics_id_counter = 0;
 
 // characteristic: ASE_CONTROL_POINT
 static uint16_t  ascs_ase_control_point_handle;
+
+static uint8_t ascs_get_next_streamendpoint_chr_id(void){
+    uint8_t next_streamendpoint_id;
+    if (ascs_streamendpoint_characteristics_id_counter == 0xff) {
+        next_streamendpoint_id = 1;
+    } else {
+        next_streamendpoint_id = ascs_streamendpoint_characteristics_id_counter + 1;
+    }
+    ascs_streamendpoint_characteristics_id_counter = next_streamendpoint_id;
+    return next_streamendpoint_id;
+}
 
 static uint16_t audio_stream_control_service_read_callback(hci_con_handle_t con_handle, uint16_t attribute_handle, uint16_t offset, uint8_t * buffer, uint16_t buffer_size){
     UNUSED(con_handle);
@@ -122,48 +133,46 @@ static void audio_stream_control_service_packet_handler(uint8_t packet_type, uin
     }
 }
 
-static uint8_t ascs_get_next_streamendpoint_id(void){
-    uint8_t next_streamendpoint_id;
-    if (ascs_streamendpoint_id_counter == 0xff) {
-        next_streamendpoint_id = 1;
-    } else {
-        next_streamendpoint_id = ascs_streamendpoint_id_counter + 1;
-    }
-    ascs_streamendpoint_id_counter = next_streamendpoint_id;
-    return next_streamendpoint_id;
-}
+static void ascs_streamenpoint_init(
+    const uint8_t streamendpoint_characteristics_num, ascs_streamendpoint_characteristic_t * streamendpoint_characteristics, 
+    uint16_t start_handle, uint16_t end_handle, ascs_role_t role){
 
-static void ascs_streamenpoint_init(const uint8_t streamendpoints_num, ascs_streamendpoint_t * streamendpoints, uint16_t start_handle, uint16_t end_handle, ascs_role_t role){
     uint16_t chr_uuid16 = ORG_BLUETOOTH_CHARACTERISTIC_SINK_ASE;
     if (role == ASCS_ROLE_SOURCE){
         chr_uuid16 = ORG_BLUETOOTH_CHARACTERISTIC_SOURCE_ASE;
     }
 
     // search streamendpoints
-    while ( (start_handle < end_handle) && (ascs_streamendpoints_num < streamendpoints_num)) {
+    while ( (start_handle < end_handle) && (ascs_streamendpoint_chr_num < streamendpoint_characteristics_num)) {
         uint16_t chr_value_handle = gatt_server_get_value_handle_for_characteristic_with_uuid16(start_handle, end_handle, chr_uuid16);
         uint16_t chr_client_configuration_handle = gatt_server_get_client_configuration_handle_for_characteristic_with_uuid16(start_handle, end_handle, chr_uuid16);
         
         if (chr_value_handle == 0){
             break;
         }
-        ascs_streamendpoint_t * streamendpoint = &ascs_streamendpoints[ascs_streamendpoints_num];
-        memset(streamendpoint, 0, sizeof(ascs_streamendpoint_t));
 
-        streamendpoint->role = role;
-        streamendpoint->ase_id = ascs_get_next_streamendpoint_id();
+        btstack_assert(ascs_streamendpoint_chr_num < ASCS_STREAMENDPOINTS_MAX_NUM);
 
-        streamendpoint->value_handle = chr_value_handle;
-        streamendpoint->client_configuration_handle = chr_client_configuration_handle;
-        streamendpoint->client_configuration = 0;
+        ascs_streamendpoint_characteristic_t * streamendpoint_chr = &ascs_streamendpoint_characteristics[ascs_streamendpoint_chr_num];
+        memset(streamendpoint_chr, 0, sizeof(ascs_streamendpoint_characteristic_t));
+
+        streamendpoint_chr->role = role;
+        streamendpoint_chr->ase_id = ascs_get_next_streamendpoint_chr_id();
+
+        streamendpoint_chr->value_handle = chr_value_handle;
+        streamendpoint_chr->client_configuration_handle = chr_client_configuration_handle;
+        streamendpoint_chr->client_configuration = 0;
         
         start_handle = chr_client_configuration_handle + 1;
-        ascs_streamendpoints_num++;
+        ascs_streamendpoint_chr_num++;
     }
 }
 
-void audio_stream_control_service_server_init(const uint8_t streamendpoints_num, ascs_streamendpoint_t * streamendpoints, const uint8_t clients_num, ascs_remote_client_t * clients){
-    btstack_assert(streamendpoints_num != 0);
+void audio_stream_control_service_server_init(
+        const uint8_t streamendpoint_characteristics_num, ascs_streamendpoint_characteristic_t * streamendpoint_characteristics, 
+        const uint8_t clients_num, ascs_remote_client_t * clients){
+
+    btstack_assert(streamendpoint_characteristics_num != 0);
     btstack_assert(clients_num != 0);
 
     // get service handle range
@@ -173,12 +182,12 @@ void audio_stream_control_service_server_init(const uint8_t streamendpoints_num,
     btstack_assert(service_found != 0);
     UNUSED(service_found);
 
-    ascs_streamendpoints_num = 0;
-    ascs_streamendpoint_id_counter = 0;
-    ascs_streamendpoints = streamendpoints;
+    ascs_streamendpoint_chr_num = 0;
+    ascs_streamendpoint_characteristics_id_counter = 0;
+    ascs_streamendpoint_characteristics = streamendpoint_characteristics;
 
-    ascs_streamenpoint_init(streamendpoints_num, streamendpoints, start_handle, end_handle, ASCS_ROLE_SINK);
-    ascs_streamenpoint_init(streamendpoints_num, streamendpoints, start_handle, end_handle, ASCS_ROLE_SOURCE);
+    ascs_streamenpoint_init(streamendpoint_characteristics_num, streamendpoint_characteristics, start_handle, end_handle, ASCS_ROLE_SINK);
+    ascs_streamenpoint_init(streamendpoint_characteristics_num, streamendpoint_characteristics, start_handle, end_handle, ASCS_ROLE_SOURCE);
 
     ascs_clients_num = clients_num;
     ascs_clients = clients;
