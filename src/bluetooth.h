@@ -179,7 +179,7 @@ typedef enum {
     HCI_AUDIO_CODING_FORMAT_LC3,
     HCI_AUDIO_CODING_FORMAT_G_729A, 
     HCI_AUDIO_CODING_FORMAT_RFU,
-    HCI_AUDIO_CODING_FORMAT_Vendor_Specific = 0xFF
+    HCI_AUDIO_CODING_FORMAT_VENDOR_SPECIFIC = 0xFF
 } hci_audio_coding_format_t;
 
 /** 
