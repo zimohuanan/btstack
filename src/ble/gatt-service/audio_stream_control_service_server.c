@@ -70,6 +70,34 @@ static uint8_t ascs_get_next_streamendpoint_chr_id(void){
     return next_streamendpoint_id;
 }
 
+static ascs_remote_client_t * ascs_get_remote_client_for_con_handle(hci_con_handle_t con_handle){
+    uint8_t i;
+    for (i = 0; i < ascs_clients_num; i++){
+        if (ascs_clients[i].con_handle == con_handle){
+            return &ascs_clients[i];
+        }
+    }
+    return NULL;
+}
+
+static ascs_streamendpoint_t * ascs_get_streamendpoint_for_ase_id(ascs_remote_client_t * client, uint8_t ase_id){
+    uint8_t i;
+    for (i = 0; i < ASCS_STREAMENDPOINTS_MAX_NUM; i++){
+        if (client->streamendpoints[i].ase_characteristic->ase_id == ase_id){
+            return &client->streamendpoints[i];
+        }
+    }
+    return NULL;
+}
+
+static ascs_streamendpoint_t * ascs_get_streamendpoint_for_con_handle(hci_con_handle_t con_handle, uint8_t ase_id){
+    ascs_remote_client_t * client = ascs_get_remote_client_for_con_handle(con_handle);
+    if (client == NULL){
+        return NULL;
+    }
+    return ascs_get_streamendpoint_for_ase_id(client, ase_id);
+}
+
 static uint16_t audio_stream_control_service_read_callback(hci_con_handle_t con_handle, uint16_t attribute_handle, uint16_t offset, uint8_t * buffer, uint16_t buffer_size){
     UNUSED(con_handle);
     
@@ -92,13 +120,156 @@ static uint16_t audio_stream_control_service_read_callback(hci_con_handle_t con_
     return 0;
 }
 
+static uint16_t ascs_get_client_codec_config_operation_length(uint8_t ase_num, uint8_t *buffer, uint16_t buffer_size){
+    uint8_t i = 0;
+    uint16_t pos = 0;
+    uint8_t codec_config_len;
+
+    for (i = 0; i < ase_num; i++){
+        if ( (buffer_size - pos) < 9 ){
+            return 0;
+        }
+        pos += 8; // ase_id, latency, phy, codec_id, codec config len
+        codec_config_len = buffer[pos++];
+        if ( (buffer_size - pos) < codec_config_len ){
+            return 0;
+        }
+        pos += codec_config_len; 
+    }
+    return pos;
+}
+
 static int audio_stream_control_service_write_callback(hci_con_handle_t con_handle, uint16_t attribute_handle, uint16_t transaction_mode, uint16_t offset, uint8_t *buffer, uint16_t buffer_size){
     UNUSED(transaction_mode);
     UNUSED(offset);
     UNUSED(buffer_size);
 
     if (attribute_handle == ascs_ase_control_point_handle){
-        // TODO
+        if (buffer_size < 1){
+            return ASCS_ERROR_CODE_UNSUPPORTED_OPCODE;
+        }
+
+        uint8_t offset = 0;
+        ascs_opcode_t opcode = (ascs_opcode_t)buffer[offset++];
+        uint8_t ase_num = buffer[offset++];
+
+        if (ase_num < 1){
+            return ASCS_ERROR_CODE_INVALID_LENGTH;
+        }
+
+        ascs_remote_client_t * client = ascs_get_remote_client_for_con_handle(con_handle);
+        if (client == NULL){
+            return ASCS_ERROR_CODE_UNSPECIFIED_ERROR;
+        }
+
+        if (ase_num > ASCS_STREAMENDPOINTS_MAX_NUM){
+            return ASCS_ERROR_CODE_INVALID_LENGTH;
+        }
+
+        uint8_t ase_counter = 0;
+        ascs_streamendpoint_t * streamendpoint;
+
+        switch (opcode){
+            case ASCS_OPCODE_CONFIG_CODEC:
+                if (ascs_get_client_codec_config_operation_length(ase_num, &buffer[offset], buffer_size - offset) == 0){
+                    return ASCS_ERROR_CODE_INVALID_LENGTH;
+                }
+
+                for (ase_counter = 0; ase_counter < ase_num; ase_counter++){
+                    // check if ASE in valid state
+                    uint8_t ase_id = buffer[offset++];
+                    streamendpoint = ascs_get_streamendpoint_for_ase_id(client, ase_id);
+                    if (streamendpoint == NULL){
+                        return ASCS_ERROR_CODE_INVALID_ASE_ID;
+                    }
+
+                    ascs_client_codec_configuration_t codec_configuration;
+                    switch (streamendpoint->state){
+                        case ASCS_STATE_IDLE:
+                        case ASCS_STATE_CODEC_CONFIGURED:
+                        case ASCS_STATE_QOS_CONFIGURED:
+
+                            codec_configuration.target_latency = buffer[offset++];
+                            if (codec_configuration.target_latency < 1 || codec_configuration.target_latency > 3){
+                                return ASCS_ERROR_CODE_INVALID_CONFIGURATION_PARAMETER_VALUE; // ASCS_REJECT_REASON_MAX_TRANSPORT_LATENCY
+                            }
+
+                            codec_configuration.target_phy = buffer[offset++];
+                            if (codec_configuration.target_phy < 1 || codec_configuration.target_phy > 3){
+                                return ASCS_ERROR_CODE_INVALID_CONFIGURATION_PARAMETER_VALUE; // ASCS_REJECT_REASON_PHY
+                            }
+
+                            codec_configuration.codec_id.coding_format = (hci_audio_coding_format_t)buffer[offset++];
+                            if (codec_configuration.codec_id.coding_format >= HCI_AUDIO_CODING_FORMAT_RFU &&
+                                codec_configuration.codec_id.coding_format !=  HCI_AUDIO_CODING_FORMAT_VENDOR_SPECIFIC){
+                                return ASCS_ERROR_CODE_INVALID_CONFIGURATION_PARAMETER_VALUE; // ASCS_REJECT_REASON_CODEC_ID
+                            }
+
+                            codec_configuration.codec_id.company_id = little_endian_read_16(buffer, offset);
+                            offset += 2;
+                            if (codec_configuration.codec_id.coding_format != HCI_AUDIO_CODING_FORMAT_VENDOR_SPECIFIC){
+                                if (codec_configuration.codec_id.company_id != 0){
+                                    return ASCS_ERROR_CODE_INVALID_CONFIGURATION_PARAMETER_VALUE; // ASCS_REJECT_REASON_CODEC_ID
+                                }
+                            }
+
+                            codec_configuration.codec_id.vendor_specific_codec_id = little_endian_read_16(buffer, offset);
+                            offset += 2;
+                            if (codec_configuration.codec_id.coding_format != HCI_AUDIO_CODING_FORMAT_VENDOR_SPECIFIC){
+                                if (codec_configuration.codec_id.vendor_specific_codec_id != 0){
+                                    return ASCS_ERROR_CODE_INVALID_CONFIGURATION_PARAMETER_VALUE; // ASCS_REJECT_REASON_CODEC_ID
+                                }
+                            }
+                            
+                            codec_configuration.codec_specific_configuration_length = buffer[offset++];
+                            memcpy(codec_configuration.codec_specific_configuration, &buffer[offset], codec_configuration.codec_specific_configuration_length);
+
+                            streamendpoint->codec_configuration = codec_configuration;
+                            streamendpoint->state = ASCS_STATE_CODEC_CONFIGURED;
+
+                            // TODO: Write the accepted or autonomously-initiated Config Codec operation parameter values to the matching Additional_ASE_Parameters fields
+                            // TODO: Write the server’s preferred values for the remaining Additional_ASE_Parameters fields 
+                            break;
+                    
+                        default:
+                            return ASCS_ERROR_CODE_INVALID_ASE_STATE_MACHINE_TRANSITION;
+                    }
+                }
+                break;
+            case ASCS_OPCODE_CONFIG_QOS:
+                // TODO
+                break;
+            case ASCS_OPCODE_ENABLE:
+                // TODO
+                break;
+            case ASCS_OPCODE_RECEIVER_START_READY:
+                // TODO
+                break;
+            case ASCS_OPCODE_DISABLE:
+                // TODO
+                break;
+            case ASCS_OPCODE_RECEIVER_STOP_READY:
+                // TODO
+                break;
+            case ASCS_OPCODE_UPDATE_METADATA:
+                // TODO
+                break;
+            case ASCS_OPCODE_RELEASE:
+                // TODO
+                break;
+            case ASCS_OPCODE_RELEASED:
+                // TODO
+                break;
+            default:
+                break;
+        }
+
+        if (ase_num != ase_counter){
+            return ASCS_ERROR_CODE_INVALID_LENGTH;
+        }
+        if (offset != buffer_size){
+            return ASCS_ERROR_CODE_INVALID_LENGTH;
+        }
     }
 
     // else if (attribute_handle == ascs_sink_ase_client_configuration_handle){
@@ -192,6 +363,13 @@ void audio_stream_control_service_server_init(
     ascs_clients_num = clients_num;
     ascs_clients = clients;
     memset(ascs_clients, 0, sizeof(ascs_remote_client_t) * ascs_clients_num);
+    uint8_t i;
+    for (i = 0; i < ascs_clients_num; i++){
+        uint8_t j;
+        for (j = 0; j < ASCS_STREAMENDPOINTS_MAX_NUM; j++){
+            ascs_clients[i].streamendpoints[j].state = ASCS_STATE_UNASSIGNED;
+        }
+    }
 
     ascs_ase_control_point_handle = gatt_server_get_value_handle_for_characteristic_with_uuid16(start_handle, end_handle, ORG_BLUETOOTH_CHARACTERISTIC_ASE_CONTROL_POINT);;
 
@@ -209,6 +387,16 @@ void audio_stream_control_service_server_init(
 void audio_stream_control_service_server_register_packet_handler(btstack_packet_handler_t callback){
     btstack_assert(callback != NULL);
     ascs_event_callback = callback;
+}
+
+void audio_stream_control_service_server_config_codec(hci_con_handle_t client_con_handle, uint8_t ase_id){
+    ascs_streamendpoint_t * streamendpoint = ascs_get_streamendpoint_for_con_handle(client_con_handle, ase_id);
+    if (streamendpoint == NULL){
+        return;
+    }
+    // TODO
+    // The server shall not send a notification of the ASE Control Point characteristic value when 
+    // completing an autonomously-initiated ASE Control operation.
 }
 
 void audio_stream_control_service_server_deinit(void){

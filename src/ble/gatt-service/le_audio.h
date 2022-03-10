@@ -105,11 +105,17 @@ extern "C" {
 #define LEA_UNFRAMED_ISOAL_PDUS_SUPPORTED             0x00
 #define LEA_UNFRAMED_ISOAL_PDUS_NOT_SUPPORTED         0x01
 
-// ASCS: Preferred PHY for Codec Configured State 
+// ASCS: PHY for Codec Configured State 
 #define LEA_PHY_NO_PREFERENCE                         0x00
 #define LEA_PHY_1M                                    0x01
 #define LEA_PHY_2M                                    0x02
 #define LEA_PHY_CODED                                 0x04
+
+// ASCS: Latency for Codec Configured State 
+#define LEA_LATENCY_NO_PREFERENCE                     0x00
+#define LEA_LATENCY_LOW                               0x01
+#define LEA_LATENCY_BALANCED                          0x02
+#define LEA_LATENCY_HIGH                              0x04
 
 typedef enum {
     LEA_CODEC_SPECIFIC_CAPABILITY_TYPE_SAMPLING_FREQUENCY = 0x01,

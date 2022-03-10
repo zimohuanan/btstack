@@ -120,6 +120,8 @@ typedef enum {
     ASCS_STATE_DISABLING,
     ASCS_STATE_RELEASING,
     ASCS_STATE_RFU,
+    // custom BTstack
+    ASCS_STATE_UNASSIGNED
 } ascs_state_t;
 
 typedef struct {
@@ -171,8 +173,17 @@ typedef struct {
 } ascs_streamendpoint_characteristic_t;
 
 typedef struct {
+    uint8_t target_latency;
+    uint8_t target_phy;
+    lea_codec_id_t codec_id;
+    uint8_t  codec_specific_configuration_length;
+    uint8_t  codec_specific_configuration[LEA_MAX_CODEC_CONFIG_SIZE]; 
+} ascs_client_codec_configuration_t;
+
+typedef struct {
     ascs_streamendpoint_characteristic_t * ase_characteristic;
     ascs_state_t state;
+    ascs_client_codec_configuration_t codec_configuration;
 } ascs_streamendpoint_t;
 
 typedef struct {
@@ -194,7 +205,7 @@ void audio_stream_control_service_server_init(
  */
 void audio_stream_control_service_server_register_packet_handler(btstack_packet_handler_t callback);
 
-// void audio_stream_control_service_server_set_ase_state(void);
+void audio_stream_control_service_server_config_codec(hci_con_handle_t client_con_handle, uint8_t ase_id);
 
 void audio_stream_control_service_server_deinit(void);
 
