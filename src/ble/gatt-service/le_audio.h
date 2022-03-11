@@ -105,17 +105,33 @@ extern "C" {
 #define LEA_UNFRAMED_ISOAL_PDUS_SUPPORTED             0x00
 #define LEA_UNFRAMED_ISOAL_PDUS_NOT_SUPPORTED         0x01
 
-// ASCS: PHY for Codec Configured State 
-#define LEA_PHY_NO_PREFERENCE                         0x00
-#define LEA_PHY_1M                                    0x01
-#define LEA_PHY_2M                                    0x02
-#define LEA_PHY_CODED                                 0x04
+// ASCS: Server responds with bitmap values: PHY Bitmap for Codec Configured State 
+#define LEA_SERVER_PHY_NO_PREFERENCE                         0x00
+#define LEA_SERVER_PHY_1M                                    0x01
+#define LEA_SERVER_PHY_2M                                    0x02
+#define LEA_SERVER_PHY_CODED                                 0x04
 
 // ASCS: Latency for Codec Configured State 
-#define LEA_LATENCY_NO_PREFERENCE                     0x00
-#define LEA_LATENCY_LOW                               0x01
-#define LEA_LATENCY_BALANCED                          0x02
-#define LEA_LATENCY_HIGH                              0x04
+#define LEA_SERVER_LATENCY_NO_PREFERENCE                     0x00
+#define LEA_SERVER_LATENCY_LOW                               0x01
+#define LEA_SERVER_LATENCY_BALANCED                          0x02
+#define LEA_SERVER_LATENCY_HIGH                              0x04
+
+typedef enum {
+    LEA_CLIENT_TARGET_LATENCY_NO_PREFERENCE = 0,
+    LEA_CLIENT_TARGET_LATENCY_LOW_LATENCY,
+    LEA_CLIENT_TARGET_LATENCY_BALANCED_LATENCY_AND_RELIABILITY,
+    LEA_CLIENT_TARGET_LATENCY_HIGH_RELIABILITY,
+    LEA_CLIENT_TARGET_LATENCY_RFU
+} lea_client_target_latency_t;
+    
+typedef enum {
+    LEA_CLIENT_TARGET_PHY_NO_PREFERENCE = 0,
+    LEA_CLIENT_TARGET_PHY_LOW,
+    LEA_CLIENT_TARGET_PHY_BALANCED,
+    LEA_CLIENT_TARGET_PHY_HIGH,
+    LEA_CLIENT_TARGET_PHY_RFU
+} lea_client_target_phy_t;
 
 typedef enum {
     LEA_CODEC_SPECIFIC_CAPABILITY_TYPE_SAMPLING_FREQUENCY = 0x01,

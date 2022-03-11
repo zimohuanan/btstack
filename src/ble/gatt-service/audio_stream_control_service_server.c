@@ -47,6 +47,9 @@
 
 #include "ble/gatt-service/audio_stream_control_service_server.h"
 
+#define ASCS_TASK_SEND_VALUE_CHANGED                                 0x01
+#define ASCS_TASK_SEND_CODEC_CONFIGURED_CONTROL_POINT_RESPONSE       0x02
+
 static att_service_handler_t    audio_stream_control_service;
 static btstack_packet_handler_t ascs_event_callback;
 
@@ -57,7 +60,9 @@ static uint8_t ascs_clients_num = 0;
 static uint8_t ascs_streamendpoint_characteristics_id_counter = 0;
 
 // characteristic: ASE_CONTROL_POINT
-static uint16_t  ascs_ase_control_point_handle;
+static uint16_t ascs_ase_control_point_handle;
+static uint16_t ascs_ase_control_point_client_configuration_handle;
+static uint16_t ascs_ase_control_point_client_configuration_value;
 
 static uint8_t ascs_get_next_streamendpoint_chr_id(void){
     uint8_t next_streamendpoint_id;
@@ -139,12 +144,111 @@ static uint16_t ascs_get_client_codec_config_operation_length(uint8_t ase_num, u
     return pos;
 }
 
+static void ascs_update_response_code(ascs_streamendpoint_t * streamendpoint, uint8_t new_response_code, uint8_t new_reason, uint8_t * resulting_response_code){
+    // return via notification only the first error for streamendpoint
+    if (streamendpoint->control_point_response_code == ASCS_ERROR_CODE_SUCCESS){
+        streamendpoint->control_point_response_code = new_response_code;
+        streamendpoint->control_point_reason = new_reason;
+    }
+
+    // as write result return the first error that occured
+    if (*resulting_response_code == ASCS_ERROR_CODE_SUCCESS){
+        *resulting_response_code = new_response_code;
+    }
+}
+
+
+static void audio_stream_control_service_server_can_send_now(void * context){
+    ascs_remote_client_t * client = (ascs_remote_client_t *) context;
+
+    if ((client->scheduled_tasks & ASCS_TASK_SEND_CODEC_CONFIGURED_CONTROL_POINT_RESPONSE) != 0){
+        client->scheduled_tasks &= ~ASCS_TASK_SEND_CODEC_CONFIGURED_CONTROL_POINT_RESPONSE;
+
+        uint8_t value[3];
+        uint8_t i;
+        uint8_t ase_num = 0;
+        for (i = 0; i < ASCS_STREAMENDPOINTS_MAX_NUM; i++){
+            ascs_streamendpoint_t streamendpoint = client->streamendpoints[i];
+            if (streamendpoint.control_point_addressed){
+                streamendpoint.control_point_addressed = false;
+                // TODO
+                ase_num++;
+            }
+        }
+        if (ase_num > 0){
+            att_server_notify(client->con_handle, ascs_ase_control_point_client_configuration_handle, &value[0], sizeof(value));
+            client->scheduled_tasks |= ASCS_TASK_SEND_VALUE_CHANGED;
+        }
+
+    } else if ((client->scheduled_tasks & ASCS_TASK_SEND_VALUE_CHANGED) != 0){
+        bool notification_sent = false;
+
+        uint8_t i;
+        for (i = 0; i < ASCS_STREAMENDPOINTS_MAX_NUM; i++){
+            ascs_streamendpoint_t streamendpoint = client->streamendpoints[i];
+            if (!streamendpoint.value_changed){
+                continue;
+            }
+
+            if (!notification_sent){
+                streamendpoint.value_changed = false;
+                notification_sent = true;
+                uint8_t value[3];
+                // TODO
+                att_server_notify(client->con_handle, streamendpoint.ase_characteristic->value_handle, &value[0], sizeof(value));
+            } else {
+                client->scheduled_tasks |= ASCS_TASK_SEND_VALUE_CHANGED;
+                break;
+            }
+        }
+    }
+
+    if (client->scheduled_tasks != 0){
+        client->scheduled_tasks_callback.callback = &audio_stream_control_service_server_can_send_now;
+        client->scheduled_tasks_callback.context  = (void*) client;
+        att_server_register_can_send_now_callback(&client->scheduled_tasks_callback, client->con_handle);
+    }
+}
+
+static void ascs_schedule_task(ascs_remote_client_t * client, ascs_streamendpoint_t * streamendpoint, uint8_t task){
+    if (client->con_handle == HCI_CON_HANDLE_INVALID){
+        client->scheduled_tasks &= ~task;
+            
+        uint8_t i;
+        for (i = 0; i < ASCS_STREAMENDPOINTS_MAX_NUM; i++){
+            streamendpoint->value_changed = false;
+            streamendpoint->control_point_addressed = false;
+            streamendpoint->control_point_response_code = 0;
+            streamendpoint->control_point_reason = 0;
+        }
+        return;
+    }
+
+    uint16_t scheduled_tasks = client->scheduled_tasks;
+    client->scheduled_tasks |= task;
+
+    if (scheduled_tasks == 0){
+        client->scheduled_tasks_callback.callback = &audio_stream_control_service_server_can_send_now;
+        client->scheduled_tasks_callback.context  = (void*) client;
+        att_server_register_can_send_now_callback(&client->scheduled_tasks_callback, client->con_handle);
+    }
+}
+
+static bool ascs_codec_configuration_supported(lea_codec_id_t codec_id, uint8_t * codec_config, uint8_t condec_length){
+    UNUSED(codec_config);
+    UNUSED(condec_length);
+    return (codec_id.coding_format == HCI_AUDIO_CODING_FORMAT_LC3);
+}
+
 static int audio_stream_control_service_write_callback(hci_con_handle_t con_handle, uint16_t attribute_handle, uint16_t transaction_mode, uint16_t offset, uint8_t *buffer, uint16_t buffer_size){
     UNUSED(transaction_mode);
     UNUSED(offset);
     UNUSED(buffer_size);
+    
+    uint8_t response_code = ASCS_ERROR_CODE_SUCCESS;
 
     if (attribute_handle == ascs_ase_control_point_handle){
+        // write without response
         if (buffer_size < 1){
             return ASCS_ERROR_CODE_UNSUPPORTED_OPCODE;
         }
@@ -162,12 +266,16 @@ static int audio_stream_control_service_write_callback(hci_con_handle_t con_hand
             return ASCS_ERROR_CODE_UNSPECIFIED_ERROR;
         }
 
-        if (ase_num > ASCS_STREAMENDPOINTS_MAX_NUM){
+        if (ase_num == 0 || ase_num > ASCS_STREAMENDPOINTS_MAX_NUM){
             return ASCS_ERROR_CODE_INVALID_LENGTH;
         }
 
         uint8_t ase_counter = 0;
         ascs_streamendpoint_t * streamendpoint;
+
+        // if multiple Response_Code and Reason values are applicable to ASE array, 
+        // the server shall use the Response_Code and Reason values that apply to the error caused by 
+        // the first erroneous ASE in the array as return value of write callback
 
         switch (opcode){
             case ASCS_OPCODE_CONFIG_CODEC:
@@ -180,60 +288,88 @@ static int audio_stream_control_service_write_callback(hci_con_handle_t con_hand
                     uint8_t ase_id = buffer[offset++];
                     streamendpoint = ascs_get_streamendpoint_for_ase_id(client, ase_id);
                     if (streamendpoint == NULL){
-                        return ASCS_ERROR_CODE_INVALID_ASE_ID;
+                        ascs_update_response_code(streamendpoint, ASCS_ERROR_CODE_INVALID_ASE_ID, 0, &response_code);
+                        break;
                     }
 
-                    ascs_client_codec_configuration_t codec_configuration;
+                    streamendpoint->control_point_response_code = ASCS_ERROR_CODE_SUCCESS;
+                    streamendpoint->control_point_reason = 0;
+                    streamendpoint->control_point_addressed = true;
+
+                    lea_client_target_latency_t target_latency;
+                    lea_client_target_phy_t target_phy;
+                    lea_codec_id_t codec_id;
+                    uint8_t   codec_config_lenght;
+                    uint8_t * codec_config;
+
                     switch (streamendpoint->state){
                         case ASCS_STATE_IDLE:
                         case ASCS_STATE_CODEC_CONFIGURED:
                         case ASCS_STATE_QOS_CONFIGURED:
-
-                            codec_configuration.target_latency = buffer[offset++];
-                            if (codec_configuration.target_latency < 1 || codec_configuration.target_latency > 3){
-                                return ASCS_ERROR_CODE_INVALID_CONFIGURATION_PARAMETER_VALUE; // ASCS_REJECT_REASON_MAX_TRANSPORT_LATENCY
+                            target_latency = (lea_client_target_latency_t)buffer[offset++];
+                            if (target_latency == LEA_CLIENT_TARGET_LATENCY_NO_PREFERENCE || target_latency >= LEA_CLIENT_TARGET_LATENCY_RFU){
+                                ascs_update_response_code(streamendpoint, ASCS_ERROR_CODE_INVALID_CONFIGURATION_PARAMETER_VALUE, ASCS_REJECT_REASON_MAX_TRANSPORT_LATENCY, &response_code);
+                                break;
                             }
 
-                            codec_configuration.target_phy = buffer[offset++];
-                            if (codec_configuration.target_phy < 1 || codec_configuration.target_phy > 3){
-                                return ASCS_ERROR_CODE_INVALID_CONFIGURATION_PARAMETER_VALUE; // ASCS_REJECT_REASON_PHY
+                            target_phy = (lea_client_target_phy_t)buffer[offset++];
+                            if (target_phy == LEA_CLIENT_TARGET_PHY_NO_PREFERENCE || target_phy >= LEA_CLIENT_TARGET_PHY_RFU){
+                                ascs_update_response_code(streamendpoint, ASCS_ERROR_CODE_INVALID_CONFIGURATION_PARAMETER_VALUE, ASCS_REJECT_REASON_PHY, &response_code);
+                                break;
                             }
 
-                            codec_configuration.codec_id.coding_format = (hci_audio_coding_format_t)buffer[offset++];
-                            if (codec_configuration.codec_id.coding_format >= HCI_AUDIO_CODING_FORMAT_RFU &&
-                                codec_configuration.codec_id.coding_format !=  HCI_AUDIO_CODING_FORMAT_VENDOR_SPECIFIC){
-                                return ASCS_ERROR_CODE_INVALID_CONFIGURATION_PARAMETER_VALUE; // ASCS_REJECT_REASON_CODEC_ID
+                            codec_id.coding_format = (hci_audio_coding_format_t)buffer[offset++];
+                            if (codec_id.coding_format >= HCI_AUDIO_CODING_FORMAT_RFU &&
+                                codec_id.coding_format !=  HCI_AUDIO_CODING_FORMAT_VENDOR_SPECIFIC){
+                                ascs_update_response_code(streamendpoint, ASCS_ERROR_CODE_INVALID_CONFIGURATION_PARAMETER_VALUE, ASCS_REJECT_REASON_CODEC_ID, &response_code);
+                                break;
                             }
 
-                            codec_configuration.codec_id.company_id = little_endian_read_16(buffer, offset);
+                            codec_id.company_id = little_endian_read_16(buffer, offset);
                             offset += 2;
-                            if (codec_configuration.codec_id.coding_format != HCI_AUDIO_CODING_FORMAT_VENDOR_SPECIFIC){
-                                if (codec_configuration.codec_id.company_id != 0){
-                                    return ASCS_ERROR_CODE_INVALID_CONFIGURATION_PARAMETER_VALUE; // ASCS_REJECT_REASON_CODEC_ID
+                            if (codec_id.coding_format != HCI_AUDIO_CODING_FORMAT_VENDOR_SPECIFIC){
+                                if (codec_id.company_id != 0){
+                                    ascs_update_response_code(streamendpoint, ASCS_ERROR_CODE_INVALID_CONFIGURATION_PARAMETER_VALUE, ASCS_REJECT_REASON_CODEC_ID, &response_code);
+                                    break;
                                 }
                             }
 
-                            codec_configuration.codec_id.vendor_specific_codec_id = little_endian_read_16(buffer, offset);
+                            codec_id.vendor_specific_codec_id = little_endian_read_16(buffer, offset);
                             offset += 2;
-                            if (codec_configuration.codec_id.coding_format != HCI_AUDIO_CODING_FORMAT_VENDOR_SPECIFIC){
-                                if (codec_configuration.codec_id.vendor_specific_codec_id != 0){
-                                    return ASCS_ERROR_CODE_INVALID_CONFIGURATION_PARAMETER_VALUE; // ASCS_REJECT_REASON_CODEC_ID
+                            if (codec_id.coding_format != HCI_AUDIO_CODING_FORMAT_VENDOR_SPECIFIC){
+                                if (codec_id.vendor_specific_codec_id != 0){
+                                    ascs_update_response_code(streamendpoint, ASCS_ERROR_CODE_INVALID_CONFIGURATION_PARAMETER_VALUE, ASCS_REJECT_REASON_CODEC_ID, &response_code);
+                                    break;
                                 }
                             }
                             
-                            codec_configuration.codec_specific_configuration_length = buffer[offset++];
-                            memcpy(codec_configuration.codec_specific_configuration, &buffer[offset], codec_configuration.codec_specific_configuration_length);
+                            codec_config_lenght = buffer[offset++];
+                            if (codec_config_lenght > LEA_MAX_CODEC_CONFIG_SIZE){
+                                ascs_update_response_code(streamendpoint, ASCS_ERROR_CODE_REJECTED_CONFIGURATION_PARAMETER_VALUE, ASCS_REJECT_REASON_CODEC_SPECIFIC_CONFIGURATION, &response_code);
+                                break;
+                            }
+                            
+                            codec_config = &buffer[offset];
+                            if (!ascs_codec_configuration_supported(codec_id, codec_config, codec_config_lenght)){
+                                ascs_update_response_code(streamendpoint, ASCS_ERROR_CODE_REJECTED_CONFIGURATION_PARAMETER_VALUE, ASCS_REJECT_REASON_CODEC_SPECIFIC_CONFIGURATION, &response_code);
+                                break;
+                            }
 
-                            streamendpoint->codec_configuration = codec_configuration;
-                            streamendpoint->state = ASCS_STATE_CODEC_CONFIGURED;
-
-                            // TODO: Write the accepted or autonomously-initiated Config Codec operation parameter values to the matching Additional_ASE_Parameters fields
-                            // TODO: Write the server’s preferred values for the remaining Additional_ASE_Parameters fields 
+                            streamendpoint->codec_configuration_target_phy = target_phy;
+                            streamendpoint->codec_configuration_target_latency = target_latency;
+                            streamendpoint->codec_configuration_codec_id = codec_id;
+                            streamendpoint->codec_configuration_tlv_length = codec_config_lenght;
+                            memcpy(streamendpoint->codec_configuration_tlv, codec_config, streamendpoint->codec_configuration_tlv_length);
                             break;
                     
                         default:
-                            return ASCS_ERROR_CODE_INVALID_ASE_STATE_MACHINE_TRANSITION;
+                            ascs_update_response_code(streamendpoint, ASCS_ERROR_CODE_INVALID_ASE_STATE_MACHINE_TRANSITION, 0, &response_code);
+                            break;
                     }
+                    // schedule opcode answer via notification
+                    // then wait for server to set the resto of codec configuration values, 
+                    // and then notify client on each ASE changed sepparately 
+                    ascs_schedule_task(client, streamendpoint, ASCS_TASK_SEND_CODEC_CONFIGURED_CONTROL_POINT_RESPONSE);
                 }
                 break;
             case ASCS_OPCODE_CONFIG_QOS:
@@ -281,7 +417,7 @@ static int audio_stream_control_service_write_callback(hci_con_handle_t con_hand
     //     ascs_source_ase_client_configuration = little_endian_read_16(buffer, 0);
     //     ascs_set_con_handle(con_handle, ascs_source_ase_client_configuration);
     // }
-    return 0;
+    return response_code;
 }
 
 static void audio_stream_control_service_packet_handler(uint8_t packet_type, uint16_t channel, uint8_t *packet, uint16_t size){
@@ -372,7 +508,7 @@ void audio_stream_control_service_server_init(
     }
 
     ascs_ase_control_point_handle = gatt_server_get_value_handle_for_characteristic_with_uuid16(start_handle, end_handle, ORG_BLUETOOTH_CHARACTERISTIC_ASE_CONTROL_POINT);;
-
+    ascs_ase_control_point_client_configuration_handle = gatt_server_get_client_configuration_handle_for_characteristic_with_uuid16(start_handle, end_handle, ORG_BLUETOOTH_CHARACTERISTIC_ASE_CONTROL_POINT);
     log_info("Found ASCS service 0x%02x-0x%02x", start_handle, end_handle);
 
     // register service with ATT Server

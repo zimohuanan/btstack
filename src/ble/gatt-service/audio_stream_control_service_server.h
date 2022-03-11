@@ -133,9 +133,6 @@ typedef struct {
     uint32_t presentation_delay_max_us;                 // 3 byte, microsec
     uint32_t preferred_presentation_delay_min_us;       // 3 byte, microsec, 0x00 - no preference
     uint32_t preferred_presentation_delay_max_us;       // 3 byte, microsec, 0x00 - no preference
-    lea_codec_id_t codec_id;
-    uint8_t  codec_specific_configuration_length;
-    uint8_t  codec_specific_configuration[LEA_MAX_CODEC_CONFIG_SIZE];
 } ascs_codec_configuration_t;
 
 typedef struct {
@@ -165,7 +162,8 @@ typedef struct {
     uint8_t  ase_id;
     ascs_role_t role;
 
-    // prefered server values
+    // preferred server values
+    ascs_codec_configuration_t codec_configuration;
     
     uint16_t value_handle;
     uint16_t client_configuration_handle;
@@ -173,27 +171,42 @@ typedef struct {
 } ascs_streamendpoint_characteristic_t;
 
 typedef struct {
-    uint8_t target_latency;
-    uint8_t target_phy;
-    lea_codec_id_t codec_id;
-    uint8_t  codec_specific_configuration_length;
-    uint8_t  codec_specific_configuration[LEA_MAX_CODEC_CONFIG_SIZE]; 
-} ascs_client_codec_configuration_t;
-
-typedef struct {
     ascs_streamendpoint_characteristic_t * ase_characteristic;
     ascs_state_t state;
-    ascs_client_codec_configuration_t codec_configuration;
+
+    // Additional ASE Parameters: Codec Configuration
+    ascs_codec_configuration_t codec_configuration;
+    
+    // values received via control point
+
+    // opcode: codec configuration
+    lea_client_target_latency_t codec_configuration_target_latency;
+    lea_client_target_phy_t codec_configuration_target_phy;
+    lea_codec_id_t codec_configuration_codec_id;
+    uint8_t codec_configuration_tlv_length;
+    uint8_t codec_configuration_tlv[LEA_MAX_CODEC_CONFIG_SIZE];
+
+    bool    value_changed;   
+    
+    // Control Point reason
+    bool    control_point_addressed;
+    uint8_t control_point_response_code;
+    uint8_t control_point_reason;
 } ascs_streamendpoint_t;
 
 typedef struct {
     hci_con_handle_t con_handle;
     ascs_streamendpoint_t streamendpoints[ASCS_STREAMENDPOINTS_MAX_NUM];
+
+    // High priority Control Point Operation responses - assumed that are handled serially
+    // followed by lower priority characteristic value changes, handled asynchronously
+    uint8_t scheduled_tasks;
+    btstack_context_callback_registration_t scheduled_tasks_callback;  
 } ascs_remote_client_t;
 
 
 /**
- * @brief Init Audio Stream Sontrol Service Server with ATT DB
+ * @brief Init Audio Stream Control Service Server with ATT DB
  */
 void audio_stream_control_service_server_init(
     const uint8_t streamendpoint_characteristics_num, ascs_streamendpoint_characteristic_t * streamendpoint_characteristics, 
