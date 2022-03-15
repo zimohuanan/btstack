@@ -47,8 +47,8 @@
 
 #include "ble/gatt-service/audio_stream_control_service_server.h"
 
-#define ASCS_TASK_SEND_VALUE_CHANGED                                 0x01
-#define ASCS_TASK_SEND_CODEC_CONFIGURED_CONTROL_POINT_RESPONSE       0x02
+#define ASCS_TASK_SEND_CONTROL_POINT_RESPONSE                        0x01
+#define ASCS_TASK_SEND_CODEC_CONFIGURATION_VALUE_CHANGED             0x02
 
 static att_service_handler_t    audio_stream_control_service;
 static btstack_packet_handler_t ascs_event_callback;
@@ -153,8 +153,8 @@ static void ascs_update_response_code(ascs_streamendpoint_t * streamendpoint, ui
 static void audio_stream_control_service_server_can_send_now(void * context){
     ascs_remote_client_t * client = (ascs_remote_client_t *) context;
 
-    if ((client->scheduled_tasks & ASCS_TASK_SEND_CODEC_CONFIGURED_CONTROL_POINT_RESPONSE) != 0){
-        client->scheduled_tasks &= ~ASCS_TASK_SEND_CODEC_CONFIGURED_CONTROL_POINT_RESPONSE;
+    if ((client->scheduled_tasks & ASCS_TASK_SEND_CONTROL_POINT_RESPONSE) != 0)              {
+        client->scheduled_tasks &= ~ASCS_TASK_SEND_CONTROL_POINT_RESPONSE;
 
         uint8_t value[3];
         uint8_t i;
@@ -173,7 +173,7 @@ static void audio_stream_control_service_server_can_send_now(void * context){
             att_server_notify(client->con_handle, ascs_ase_control_point_client_configuration_handle, &value[0], sizeof(value));
         }
 
-    } else if ((client->scheduled_tasks & ASCS_TASK_SEND_VALUE_CHANGED) != 0){
+    } else if ((client->scheduled_tasks & ASCS_TASK_SEND_CODEC_CONFIGURATION_VALUE_CHANGED) != 0){
         bool notification_sent = false;
 
         uint8_t i;
@@ -190,11 +190,11 @@ static void audio_stream_control_service_server_can_send_now(void * context){
                 // TODO
                 att_server_notify(client->con_handle, streamendpoint.ase_characteristic->value_handle, &value[0], sizeof(value));
             } else {
-                client->scheduled_tasks |= ASCS_TASK_SEND_VALUE_CHANGED;
+                client->scheduled_tasks |= ASCS_TASK_SEND_CODEC_CONFIGURATION_VALUE_CHANGED;
                 break;
             }
         }
-        client->scheduled_tasks &= ~ASCS_TASK_SEND_VALUE_CHANGED;
+        client->scheduled_tasks &= ~ASCS_TASK_SEND_CODEC_CONFIGURATION_VALUE_CHANGED;
     }
 
     if (client->scheduled_tasks != 0){
@@ -363,8 +363,8 @@ static int audio_stream_control_service_write_callback(hci_con_handle_t con_hand
                     // schedule opcode answer via notification
                     // then wait for server to set the resto of codec configuration values, 
                     // and then notify client on each ASE changed sepparately 
-                    ascs_schedule_task(client, streamendpoint, ASCS_TASK_SEND_CODEC_CONFIGURED_CONTROL_POINT_RESPONSE);
-                }
+                    ascs_schedule_task(client, streamendpoint, ASCS_TASK_SEND_CONTROL_POINT_RESPONSE);
+                                 }
                 break;
             case ASCS_OPCODE_CONFIG_QOS:
                 // TODO
@@ -536,7 +536,7 @@ void audio_stream_control_service_server_configure_codec(hci_con_handle_t client
     if (streamendpoint->w4_server_confirmation){
         streamendpoint->w4_server_confirmation = false;
         streamendpoint->value_changed = true;
-        ascs_schedule_task(client, streamendpoint, ASCS_TASK_SEND_VALUE_CHANGED);
+        ascs_schedule_task(client, streamendpoint, ASCS_TASK_SEND_CODEC_CONFIGURATION_VALUE_CHANGED);
     }
 }
 

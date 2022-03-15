@@ -135,8 +135,8 @@ typedef struct {
     uint32_t preferred_presentation_delay_max_us;       // 3 byte, microsec, 0x00 - no preference
 
     lea_codec_id_t codec_id;
-    uint8_t codec_tlv_length;
-    uint8_t codec_tlv[LEA_MAX_CODEC_CONFIG_SIZE];
+    uint8_t codec_specific_configuration_length;
+    uint8_t codec_specific_configuration[LEA_MAX_CODEC_CONFIG_SIZE];
 } ascs_codec_configuration_t;
 
 typedef struct {
@@ -188,7 +188,7 @@ typedef struct {
     // Codec Configuration: Server's answer to Client recommendation
     ascs_codec_configuration_t codec_configuration;
     bool w4_server_confirmation;
-    
+
     bool    value_changed;   
     
     // Control Point reason
