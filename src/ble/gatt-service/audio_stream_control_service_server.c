@@ -156,7 +156,12 @@ static void audio_stream_control_service_server_can_send_now(void * context){
     if ((client->scheduled_tasks & ASCS_TASK_SEND_CONTROL_POINT_RESPONSE) != 0)              {
         client->scheduled_tasks &= ~ASCS_TASK_SEND_CONTROL_POINT_RESPONSE;
 
-        uint8_t value[3];
+        uint8_t value[2+3*ASCS_STREAMENDPOINTS_MAX_NUM];
+        uint8_t pos = 0;
+
+        value[pos++] = ASCS_OPCODE_CONFIG_CODEC;
+        pos++; // Number_of_ASEs
+        
         uint8_t i;
         uint8_t ase_num = 0;
         for (i = 0; i < ASCS_STREAMENDPOINTS_MAX_NUM; i++){
@@ -165,10 +170,15 @@ static void audio_stream_control_service_server_can_send_now(void * context){
                 streamendpoint.control_point_addressed = false;
                 streamendpoint.w4_server_confirmation = true;
 
-                // TODO
+                value[pos++] = streamendpoint.ase_characteristic->ase_id;
+                value[pos++] = streamendpoint.control_point_response_code;
+                value[pos++] = streamendpoint.control_point_reason;
                 ase_num++;
             }
         }
+        
+        value[1] = ase_num;
+
         if (ase_num > 0){
             att_server_notify(client->con_handle, ascs_ase_control_point_client_configuration_handle, &value[0], sizeof(value));
         }
