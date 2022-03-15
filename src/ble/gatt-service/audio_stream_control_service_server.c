@@ -95,14 +95,6 @@ static ascs_streamendpoint_t * ascs_get_streamendpoint_for_ase_id(ascs_remote_cl
     return NULL;
 }
 
-static ascs_streamendpoint_t * ascs_get_streamendpoint_for_con_handle(hci_con_handle_t con_handle, uint8_t ase_id){
-    ascs_remote_client_t * client = ascs_get_remote_client_for_con_handle(con_handle);
-    if (client == NULL){
-        return NULL;
-    }
-    return ascs_get_streamendpoint_for_ase_id(client, ase_id);
-}
-
 static uint16_t audio_stream_control_service_read_callback(hci_con_handle_t con_handle, uint16_t attribute_handle, uint16_t offset, uint8_t * buffer, uint16_t buffer_size){
     UNUSED(con_handle);
     
@@ -171,13 +163,14 @@ static void audio_stream_control_service_server_can_send_now(void * context){
             ascs_streamendpoint_t streamendpoint = client->streamendpoints[i];
             if (streamendpoint.control_point_addressed){
                 streamendpoint.control_point_addressed = false;
+                streamendpoint.w4_server_confirmation = true;
+
                 // TODO
                 ase_num++;
             }
         }
         if (ase_num > 0){
             att_server_notify(client->con_handle, ascs_ase_control_point_client_configuration_handle, &value[0], sizeof(value));
-            client->scheduled_tasks |= ASCS_TASK_SEND_VALUE_CHANGED;
         }
 
     } else if ((client->scheduled_tasks & ASCS_TASK_SEND_VALUE_CHANGED) != 0){
@@ -201,6 +194,7 @@ static void audio_stream_control_service_server_can_send_now(void * context){
                 break;
             }
         }
+        client->scheduled_tasks &= ~ASCS_TASK_SEND_VALUE_CHANGED;
     }
 
     if (client->scheduled_tasks != 0){
@@ -358,8 +352,8 @@ static int audio_stream_control_service_write_callback(hci_con_handle_t con_hand
                             streamendpoint->codec_configuration_target_phy = target_phy;
                             streamendpoint->codec_configuration_target_latency = target_latency;
                             streamendpoint->codec_configuration_codec_id = codec_id;
-                            streamendpoint->codec_configuration_tlv_length = codec_config_lenght;
-                            memcpy(streamendpoint->codec_configuration_tlv, codec_config, streamendpoint->codec_configuration_tlv_length);
+                            streamendpoint->codec_configuration_codec_tlv_length = codec_config_lenght;
+                            memcpy(streamendpoint->codec_configuration_codec_tlv, codec_config, streamendpoint->codec_configuration_codec_tlv_length);
                             break;
                     
                         default:
@@ -525,14 +519,25 @@ void audio_stream_control_service_server_register_packet_handler(btstack_packet_
     ascs_event_callback = callback;
 }
 
-void audio_stream_control_service_server_config_codec(hci_con_handle_t client_con_handle, uint8_t ase_id){
-    ascs_streamendpoint_t * streamendpoint = ascs_get_streamendpoint_for_con_handle(client_con_handle, ase_id);
+void audio_stream_control_service_server_configure_codec(hci_con_handle_t client_con_handle, uint8_t ase_id, ascs_codec_configuration_t codec_configuration){
+    ascs_remote_client_t * client = ascs_get_remote_client_for_con_handle(client_con_handle);
+    if (client == NULL){
+        return;
+    }
+
+    ascs_streamendpoint_t * streamendpoint = ascs_get_streamendpoint_for_ase_id(client, ase_id);
     if (streamendpoint == NULL){
         return;
     }
-    // TODO
     // The server shall not send a notification of the ASE Control Point characteristic value when 
     // completing an autonomously-initiated ASE Control operation.
+    memcpy(&streamendpoint->codec_configuration, &codec_configuration, sizeof(ascs_codec_configuration_t));
+
+    if (streamendpoint->w4_server_confirmation){
+        streamendpoint->w4_server_confirmation = false;
+        streamendpoint->value_changed = true;
+        ascs_schedule_task(client, streamendpoint, ASCS_TASK_SEND_VALUE_CHANGED);
+    }
 }
 
 void audio_stream_control_service_server_deinit(void){

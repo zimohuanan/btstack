@@ -133,6 +133,10 @@ typedef struct {
     uint32_t presentation_delay_max_us;                 // 3 byte, microsec
     uint32_t preferred_presentation_delay_min_us;       // 3 byte, microsec, 0x00 - no preference
     uint32_t preferred_presentation_delay_max_us;       // 3 byte, microsec, 0x00 - no preference
+
+    lea_codec_id_t codec_id;
+    uint8_t codec_tlv_length;
+    uint8_t codec_tlv[LEA_MAX_CODEC_CONFIG_SIZE];
 } ascs_codec_configuration_t;
 
 typedef struct {
@@ -174,18 +178,17 @@ typedef struct {
     ascs_streamendpoint_characteristic_t * ase_characteristic;
     ascs_state_t state;
 
-    // Additional ASE Parameters: Codec Configuration
-    ascs_codec_configuration_t codec_configuration;
-    
-    // values received via control point
-
-    // opcode: codec configuration
+    // Codec Configuration: Client recommendation received via control point
     lea_client_target_latency_t codec_configuration_target_latency;
     lea_client_target_phy_t codec_configuration_target_phy;
     lea_codec_id_t codec_configuration_codec_id;
-    uint8_t codec_configuration_tlv_length;
-    uint8_t codec_configuration_tlv[LEA_MAX_CODEC_CONFIG_SIZE];
+    uint8_t codec_configuration_codec_tlv_length;
+    uint8_t codec_configuration_codec_tlv[LEA_MAX_CODEC_CONFIG_SIZE];
 
+    // Codec Configuration: Server's answer to Client recommendation
+    ascs_codec_configuration_t codec_configuration;
+    bool w4_server_confirmation;
+    
     bool    value_changed;   
     
     // Control Point reason
@@ -218,7 +221,7 @@ void audio_stream_control_service_server_init(
  */
 void audio_stream_control_service_server_register_packet_handler(btstack_packet_handler_t callback);
 
-void audio_stream_control_service_server_config_codec(hci_con_handle_t client_con_handle, uint8_t ase_id);
+void audio_stream_control_service_server_configure_codec(hci_con_handle_t client_con_handle, uint8_t ase_id, ascs_codec_configuration_t codec_configuration);
 
 void audio_stream_control_service_server_deinit(void);
 
