@@ -62,7 +62,7 @@ static uint8_t ascs_streamendpoint_characteristics_id_counter = 0;
 // characteristic: ASE_CONTROL_POINT
 static uint16_t ascs_ase_control_point_handle;
 static uint16_t ascs_ase_control_point_client_configuration_handle;
-static uint16_t ascs_ase_control_point_client_configuration_value;
+static uint16_t ascs_ase_control_point_client_configuration;
 
 static uint8_t ascs_get_next_streamendpoint_chr_id(void){
     uint8_t next_streamendpoint_id;
@@ -125,24 +125,35 @@ static void asce_read_ase(ascs_streamendpoint_t * streamendpoint, uint8_t * valu
 }
 
 static uint16_t audio_stream_control_service_read_callback(hci_con_handle_t con_handle, uint16_t attribute_handle, uint16_t offset, uint8_t * buffer, uint16_t buffer_size){
-    UNUSED(con_handle);
-    
-    // if (attribute_handle == ascs_sink_ase_handle){
-    //     // TODO
-    // }
 
-    // if (attribute_handle == ascs_source_ase_handle){
-    //     // TODO
-    // }
+    if (attribute_handle == ascs_ase_control_point_client_configuration_handle){
+        return att_read_callback_handle_little_endian_16(ascs_ase_control_point_client_configuration, offset, buffer, buffer_size);
+    }
 
-    // if (attribute_handle == ascs_sink_ase_client_configuration_handle){
-    //     return att_read_callback_handle_little_endian_16(ascs_sink_ase_client_configuration, offset, buffer, buffer_size);
-    // }
-    
-    // if (attribute_handle == ascs_source_ase_client_configuration_handle){
-    //     return att_read_callback_handle_little_endian_16(ascs_source_ase_client_configuration, offset, buffer, buffer_size);
-    // }
+    ascs_remote_client_t * client = ascs_get_remote_client_for_con_handle(con_handle);
+    if (client == NULL){
+        return 0;
+    }
 
+    uint8_t i;
+    for (i = 0; i < ascs_streamendpoint_chr_num; i++){
+        ascs_streamendpoint_characteristic_t chr = ascs_streamendpoint_characteristics[i];
+        // find streamendpoints for given client
+        ascs_streamendpoint_t * streamendpoint = ascs_get_streamendpoint_for_ase_id(client, chr.ase_id);
+        if (streamendpoint == NULL){
+            continue;
+        }
+
+        if (attribute_handle == chr.value_handle){
+            uint8_t value[25 + LEA_MAX_CODEC_CONFIG_SIZE]; 
+            return att_read_callback_handle_blob(value, sizeof(value), offset, buffer, buffer_size);
+        }
+
+        if (attribute_handle == chr.client_configuration_handle){
+            return att_read_callback_handle_little_endian_16(chr.client_configuration, offset, buffer, buffer_size);
+        }
+        
+    }
     return 0;
 }
 
