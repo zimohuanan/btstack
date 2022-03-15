@@ -235,13 +235,10 @@ static void audio_stream_control_service_server_can_send_now(void * context){
 
             if (!notification_sent){
                 notification_sent = true;
-                
                 streamendpoint.value_changed = false;
-                streamendpoint.state = ASCS_STATE_CODEC_CONFIGURED;
-
+                
                 uint8_t value[25 + LEA_MAX_CODEC_CONFIG_SIZE]; 
                 asce_read_ase(&streamendpoint, value, sizeof(value));
-
                 att_server_notify(client->con_handle, streamendpoint.ase_characteristic->value_handle, &value[0], sizeof(value));
             } else {
                 client->scheduled_tasks |= ASCS_TASK_SEND_CODEC_CONFIGURATION_VALUE_CHANGED;
@@ -270,6 +267,18 @@ static void ascs_schedule_task(ascs_remote_client_t * client, ascs_streamendpoin
             streamendpoint->control_point_reason = 0;
         }
         return;
+    }
+
+    if (task == ASCS_TASK_SEND_CONTROL_POINT_RESPONSE){
+        // check if control point chr notification enabled
+        if (ascs_ase_control_point_client_configuration == 0){
+            return;
+        }
+    } else {
+        // check if ase chr notification enabled
+        if (streamendpoint->ase_characteristic->client_configuration == 0){
+            return;
+        }
     }
 
     uint16_t scheduled_tasks = client->scheduled_tasks;
@@ -586,8 +595,9 @@ void audio_stream_control_service_server_configure_codec(hci_con_handle_t client
     // The server shall not send a notification of the ASE Control Point characteristic value when 
     // completing an autonomously-initiated ASE Control operation.
     memcpy(&streamendpoint->codec_configuration, &codec_configuration, sizeof(ascs_codec_configuration_t));
+    streamendpoint.state = ASCS_STATE_CODEC_CONFIGURED;
 
-    if (streamendpoint->w4_server_confirmation){
+    if ((streamendpoint->ase_characteristic->client_configuration != 0) && streamendpoint->w4_server_confirmation){
         streamendpoint->w4_server_confirmation = false;
         streamendpoint->value_changed = true;
         ascs_schedule_task(client, streamendpoint, ASCS_TASK_SEND_CODEC_CONFIGURATION_VALUE_CHANGED);
