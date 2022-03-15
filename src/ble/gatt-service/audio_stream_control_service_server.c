@@ -95,6 +95,35 @@ static ascs_streamendpoint_t * ascs_get_streamendpoint_for_ase_id(ascs_remote_cl
     return NULL;
 }
 
+static void asce_read_ase(ascs_streamendpoint_t * streamendpoint, uint8_t * value, uint16_t value_size){
+    uint8_t pos = 0;
+
+    value[pos++] = streamendpoint->ase_characteristic->ase_id;
+    value[pos++] = (uint8_t)streamendpoint->state;
+    value[pos++] = (uint8_t)streamendpoint->codec_configuration.framing;
+    value[pos++] = (uint8_t)streamendpoint->codec_configuration.preferred_phy;
+    value[pos++] = (uint8_t)streamendpoint->codec_configuration.preferred_retransmission_number;
+    little_endian_store_16(value, pos, streamendpoint->codec_configuration.max_transport_latency_ms);
+    pos += 2;
+    little_endian_store_24(value, pos, streamendpoint->codec_configuration.presentation_delay_min_us);
+    pos += 3;
+    little_endian_store_24(value, pos, streamendpoint->codec_configuration.presentation_delay_max_us);
+    pos += 3;
+    little_endian_store_24(value, pos, streamendpoint->codec_configuration.preferred_presentation_delay_min_us);
+    pos += 3;
+    little_endian_store_24(value, pos, streamendpoint->codec_configuration.preferred_presentation_delay_max_us);
+    pos += 3;
+
+    value[pos++] = (uint8_t)streamendpoint->codec_configuration.codec_id.coding_format;
+    little_endian_store_16(value, pos, streamendpoint->codec_configuration.codec_id.company_id);
+    pos += 2;
+    little_endian_store_16(value, pos, streamendpoint->codec_configuration.codec_id.vendor_specific_codec_id);
+    pos += 2;
+
+    value[pos++] = (uint8_t)streamendpoint->codec_configuration.codec_specific_configuration_length;
+    memcpy(&value[pos], &streamendpoint->codec_configuration.codec_specific_configuration[0], streamendpoint->codec_configuration.codec_specific_configuration_length);
+}
+
 static uint16_t audio_stream_control_service_read_callback(hci_con_handle_t con_handle, uint16_t attribute_handle, uint16_t offset, uint8_t * buffer, uint16_t buffer_size){
     UNUSED(con_handle);
     
@@ -194,10 +223,14 @@ static void audio_stream_control_service_server_can_send_now(void * context){
             }
 
             if (!notification_sent){
-                streamendpoint.value_changed = false;
                 notification_sent = true;
-                uint8_t value[3];
-                // TODO
+                
+                streamendpoint.value_changed = false;
+                streamendpoint.state = ASCS_STATE_CODEC_CONFIGURED;
+
+                uint8_t value[25 + LEA_MAX_CODEC_CONFIG_SIZE]; 
+                asce_read_ase(&streamendpoint, value, sizeof(value));
+
                 att_server_notify(client->con_handle, streamendpoint.ase_characteristic->value_handle, &value[0], sizeof(value));
             } else {
                 client->scheduled_tasks |= ASCS_TASK_SEND_CODEC_CONFIGURATION_VALUE_CHANGED;
