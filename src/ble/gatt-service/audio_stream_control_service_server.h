@@ -94,6 +94,7 @@ extern "C" {
 #define ASCS_REJECT_REASON_RFU                                                      0x0B
 
 typedef enum {
+    ASCS_OPCODE_UNSUPPORTED = 0x00,
     ASCS_OPCODE_CONFIG_CODEC = 0x01,
     ASCS_OPCODE_CONFIG_QOS,
     ASCS_OPCODE_ENABLE,
@@ -134,9 +135,16 @@ typedef struct {
     uint32_t preferred_presentation_delay_min_us;       // 3 byte, microsec, 0x00 - no preference
     uint32_t preferred_presentation_delay_max_us;       // 3 byte, microsec, 0x00 - no preference
 
-    lea_codec_id_t codec_id;
+    hci_audio_coding_format_t coding_format;
+    uint16_t company_id;
+    uint16_t vendor_specific_codec_id;
+
     uint8_t codec_specific_configuration_length;
     uint8_t codec_specific_configuration[LEA_MAX_CODEC_CONFIG_SIZE];
+    // lea_codec_sampling_frequency_t sampling_frequency; // uint8_t
+    // lea_codec_frame_duration_t frame_duration;
+    // uint16_t octets_per_codec_frame;
+
 } ascs_codec_configuration_t;
 
 typedef struct {
@@ -178,24 +186,20 @@ typedef struct {
     ascs_streamendpoint_characteristic_t * ase_characteristic;
     ascs_state_t state;
 
-    // Codec Configuration: Client recommendation received via control point
-    lea_client_target_latency_t codec_configuration_target_latency;
-    lea_client_target_phy_t codec_configuration_target_phy;
-    lea_codec_id_t codec_configuration_codec_id;
-    uint8_t codec_configuration_codec_tlv_length;
-    uint8_t codec_configuration_codec_tlv[LEA_MAX_CODEC_CONFIG_SIZE];
-
-    // Codec Configuration: Server's answer to Client recommendation
+    // Codec Configuration
     ascs_codec_configuration_t codec_configuration;
-    bool w4_server_confirmation;
-
-    bool    value_changed;   
     
-    // Control Point reason
-    bool    control_point_addressed;
-    uint8_t control_point_response_code;
-    uint8_t control_point_reason;
+    // ASE value changed indicates that server 
+    bool    client_changed_ase_value_w4_server_confirmation;
+    bool    server_changed_ase_value;   
 } ascs_streamendpoint_t;
+
+typedef struct {
+    uint8_t  ase_id;
+    bool     addressed;
+    uint8_t  response_code;
+    uint8_t  reason;
+} ascs_control_point_operation_response_t;
 
 typedef struct {
     hci_con_handle_t con_handle;
@@ -205,6 +209,11 @@ typedef struct {
     // followed by lower priority characteristic value changes, handled asynchronously
     uint8_t scheduled_tasks;
     btstack_context_callback_registration_t scheduled_tasks_callback;  
+
+    // store response for control point operation
+    ascs_opcode_t response_opcode;
+    uint8_t       response_ases_num;
+    ascs_control_point_operation_response_t response[ASCS_STREAMENDPOINTS_MAX_NUM];
 } ascs_remote_client_t;
 
 
