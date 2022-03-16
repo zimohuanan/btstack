@@ -196,7 +196,6 @@ typedef struct {
 
 typedef struct {
     uint8_t  ase_id;
-    bool     addressed;
     uint8_t  response_code;
     uint8_t  reason;
 } ascs_control_point_operation_response_t;

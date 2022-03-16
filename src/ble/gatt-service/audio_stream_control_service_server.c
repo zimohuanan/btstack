@@ -128,6 +128,32 @@ static void ascs_client_reset_response(ascs_remote_client_t * client){
     memset(client->response, 0, sizeof(ascs_control_point_operation_response_t) * ASCS_STREAMENDPOINTS_MAX_NUM);
 }
 
+static void ascs_emit_codec_configuration(hci_con_handle_t con_handle, uint8_t ase_index, ascs_client_codec_configuration_t client_config){
+    btstack_assert(ascs_event_callback != NULL);
+    
+    uint8_t event[19];
+    uint8_t pos = 0;
+    event[pos++] = HCI_EVENT_GATTSERVICE_META;
+    event[pos++] = sizeof(event) - 2;
+    event[pos++] = GATTSERVICE_SUBEVENT_ASCS_CLIENT_CODEC_CONFIGURATION_RECEIVED;
+    little_endian_store_16(event, pos, con_handle);
+    pos += 2;
+    event[pos++] = ase_index;
+    event[pos++] = (uint8_t)client_config.target_latency;
+    event[pos++] = (uint8_t)client_config.target_phy;
+    event[pos++] = (uint8_t)client_config.coding_format;
+    little_endian_store_16(event, pos, client_config.company_id);
+    pos += 2;
+    little_endian_store_16(event, pos, client_config.vendor_specific_codec_id);
+    pos += 2;
+
+    little_endian_store_32(event, pos, client_config.sampling_frequency_hz);
+    pos += 4;
+    
+    event[pos++] = (uint8_t)client_config.frame_duration;
+    event[pos++] = (uint8_t)client_config.octets_per_frame;
+    (*ascs_event_callback)(HCI_EVENT_PACKET, 0, event, sizeof(event));
+}
 
 static void asce_read_ase(ascs_streamendpoint_t * streamendpoint, uint8_t * value, uint16_t value_size){
     uint8_t pos = 0;
@@ -426,6 +452,7 @@ static int audio_stream_control_service_write_callback(hci_con_handle_t con_hand
         if (buffer_size < 2){
             // ASCS_ERROR_CODE_INVALID_LENGTH, set Number_of_ASEs to 0xFF
             client->response_ases_num = 0xFF;
+            ascs_schedule_task(client, ASCS_TASK_SEND_CONTROL_POINT_RESPONSE);
             return 0;
         }
 
@@ -433,51 +460,78 @@ static int audio_stream_control_service_write_callback(hci_con_handle_t con_hand
         if (ases_num == 0 || ases_num > ASCS_STREAMENDPOINTS_MAX_NUM){
             // ASCS_ERROR_CODE_INVALID_LENGTH, set Number_of_ASEs to 0xFF
             client->response_ases_num = 0xFF;
+            ascs_schedule_task(client, ASCS_TASK_SEND_CONTROL_POINT_RESPONSE);
             return 0;
         }
 
+        // save offset for second buffer read:
+        // - first read is used to form answer for control point operation - sent via notification
+        // - second read is used to inform server on ASEs that changed values, which could in turn trigger 
+        // notification on value changed
+
+        uint16_t data_offset = offset;
+        
         uint8_t ases_counter = 0;
         ascs_streamendpoint_t * streamendpoint;
-
+        
         switch (client->response_opcode){
             case ASCS_OPCODE_CONFIG_CODEC:
+                // first read
+
                 if (!ascs_client_codec_config_operation_length_valid(ases_num, &buffer[offset], buffer_size - offset)){
                     // ASCS_ERROR_CODE_INVALID_LENGTH
                     client->response_ases_num = 0xFF;
+                } else {
+                    client->response_ases_num = ases_num;
+                    ascs_client_codec_configuration_t codec_config;
+
+                    for (ases_counter = 0; ases_counter < client->response_ases_num; ases_counter++){
+                        client->response[ases_counter].ase_id = buffer[offset++];
+
+                        streamendpoint = ascs_get_streamendpoint_for_ase_id(client, client->response[ases_counter].ase_id);
+                        if (streamendpoint == NULL){
+                            client->response[ases_counter].response_code = ASCS_ERROR_CODE_INVALID_ASE_ID;
+                            continue;
+                        }
+
+                        if (!ascs_client_in_right_state_for_codec_configuration_operation(streamendpoint)){
+                            client->response[ases_counter].response_code = ASCS_ERROR_CODE_INVALID_ASE_STATE_MACHINE_TRANSITION;
+                            return 0;
+                        }
+                        
+                        offset += ascs_read_client_codec_configuration(&buffer[offset], buffer_size-offset, &codec_config);
+                        ascs_client_set_codec_configuration_response(codec_config, &client->response[ases_counter]);
+                    }
+                }
+
+                if (client->response_ases_num != ases_counter){
+                    // ASCS_ERROR_CODE_INVALID_LENGTH
+                    client->response_ases_num = 0xFF;
+                }
+                // schedule opcode answer via notification
+                // then wait for server to set the rest of codec configuration values, 
+                // and then notify client on each ASE changed sepparately 
+                ascs_schedule_task(client, ASCS_TASK_SEND_CONTROL_POINT_RESPONSE);
+
+                // second read
+                if (client->response_ases_num == 0xFF){
                     return 0;
                 }
 
-                client->response_ases_num = ases_num;
+                ascs_client_codec_configuration_t codec_config;
+
                 for (ases_counter = 0; ases_counter < client->response_ases_num; ases_counter++){
-                    client->response[ases_counter].ase_id = buffer[offset++];
+                    uint8_t ase_id = buffer[data_offset++];
+                    btstack_assert( client->response[ases_counter].ase_id == ase_id);
 
-                    streamendpoint = ascs_get_streamendpoint_for_ase_id(client, client->response[ases_counter].ase_id);
-                    if (streamendpoint == NULL){
-                        client->response[ases_counter].response_code = ASCS_ERROR_CODE_INVALID_ASE_ID;
-                        continue;
+                    data_offset += ascs_read_client_codec_configuration(&buffer[data_offset], buffer_size-data_offset, &codec_config);
+                    
+                    if (client->response[ases_counter].reason == ASCS_ERROR_CODE_SUCCESS){
+                        ascs_emit_codec_configuration(con_handle, ase_id, codec_config);
                     }
-
-                    if (!ascs_client_in_right_state_for_codec_configuration_operation(streamendpoint)){
-                        client->response[ases_counter].response_code = ASCS_ERROR_CODE_INVALID_ASE_STATE_MACHINE_TRANSITION;
-                        return 0;
-                    }
-
-                    ascs_client_codec_configuration_t codec_config;
-                    offset += ascs_read_client_codec_configuration(&buffer[offset], buffer_size-offset, &codec_config);
-                    ascs_client_set_codec_configuration_response(codec_config, &client->response[ases_counter]);
                 }
-
-                // schedule opcode answer via notification
-                // then wait for server to set the resto of codec configuration values, 
-                // and then notify client on each ASE changed sepparately 
-
-                ascs_schedule_task(client, ASCS_TASK_SEND_CONTROL_POINT_RESPONSE);
-
-                // TODO, if all ASE valid, inform server
-                // ascs_parse_codec_configuration_tlv(codec_config.codec_specific_config, codec_config.codec_specific_config_lenght, &codec_config);
-                // ascs_emit_codec_configuration(con_handle, ase_id, codec_config);
-
                 break;
+
             case ASCS_OPCODE_CONFIG_QOS:
                 // TODO
                 break;
@@ -506,12 +560,6 @@ static int audio_stream_control_service_write_callback(hci_con_handle_t con_hand
                 // ASCS_ERROR_CODE_UNSUPPORTED_OPCODE, set Number_of_ASEs to 0xFF
                 client->response_ases_num = 0xFF;
                 return 0;
-        }
-
-        if (ases_num != ases_counter){
-            // ASCS_ERROR_CODE_INVALID_LENGTH
-            client->response_ases_num = 0xFF;
-            return 0;
         }
     }
 
