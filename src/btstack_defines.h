@@ -3924,6 +3924,22 @@ typedef uint8_t sm_key_t[16];
 */
 #define GATTSERVICE_SUBEVENT_BASS_SOURCE_REMOVED                               0x30u
 
+/**
+ * @format 1H111122411
+ * @param subevent_code
+ * @param con_handle
+ * @param ase_index
+ * @param target_latency
+ * @param target_phy
+ * @param coding_format
+ * @param company_id
+ * @param vendor_specific_codec_id
+ * @param sampling_frequency
+ * @param frame_duration 
+ * @param octets_per_codec_frame 
+*/
+#define GATTSERVICE_SUBEVENT_ASCS_CLIENT_CODEC_CONFIGURATION_RECEIVED         0x31u
+
 
 // MAP Meta Event Group
 
