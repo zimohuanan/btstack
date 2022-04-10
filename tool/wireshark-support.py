@@ -19,7 +19,7 @@ bk_addition_end   = '/* BlueKitchen BTstack Support END */'
 
 # hints
 hint_evt_code_vals = '/* Other */'
-hint_add_variables = 'static int hf_packet_type_sco_reserved_4_0 = -1;'
+hint_add_hf_vars = 'static int hf_packet_type_sco_reserved_4_0 = -1;'
 hint_add_enums      = 'unit_name_string units_number_events'
 hint_dissect_event  = 'case 0xff: /* Vendor-Specific */'
 hint_add_header_fields = '{ &hf_bthci_evt_code,'
@@ -59,14 +59,16 @@ supported_event_groups = meta_events + [
 
 target_file = 'epan/dissectors/packet-bthci_evt.c'
 
-def c_type_for_btstack_type(type):
-    param_types = { '1' : 'uint8_t', '2' : 'uint16_t', '3' : 'uint32_t', '4' : 'uint32_t', 'H' : 'hci_con_handle_t', 'B' : 'bd_addr_t',
-                    'D' : 'const uint8_t *', 'E' : 'const uint8_t * ', 'N' : 'const char *' , 'P' : 'const uint8_t *', 'A' : 'const uint8_t *',
-                    'R' : 'const uint8_t *', 'S' : 'const uint8_t *',
-                    'J' : 'uint8_t', 'L' : 'uint16_t', 'V' : 'const uint8_t *', 'U' : 'BT_UUID',
-                    'Q' : 'uint8_t *', 'K' : 'uint8_t *',
-                    'X' : 'gatt_client_service_t *', 'Y' : 'gatt_client_characteristic_t *', 'Z' : 'gatt_client_characteristic_descriptor_t *',
-                    'T' : 'const char *', 'C' : 'uint16_t' }
+def ws_type_for_btstack_type(type):
+    param_types = { 
+    # '1' : 'uint8_t', '2' : 'uint16_t', '3' : 'uint32_t', '4' : 'uint32_t', 'H' : 'hci_con_handle_t', 'B' : 'bd_addr_t',
+    # 'D' : 'const uint8_t *', 'E' : 'const uint8_t * ', 'N' : 'const char *' , 'P' : 'const uint8_t *', 'A' : 'const uint8_t *',
+    # 'R' : 'const uint8_t *', 'S' : 'const uint8_t *',
+    # 'J' : 'uint8_t', 'L' : 'uint16_t', 'V' : 'const uint8_t *', 'U' : 'BT_UUID',
+    # 'Q' : 'uint8_t *', 'K' : 'uint8_t *',
+    # 'X' : 'gatt_client_service_t *', 'Y' : 'gatt_client_characteristic_t *', 'Z' : 'gatt_client_characteristic_descriptor_t *',
+    # 'T' : 'const char *', 'C' : 'uint16_t'
+    }
     return param_types[type]
 
 def get_fields(events):
@@ -80,6 +82,7 @@ def get_fields(events):
             if typed_arg not in fields:
                 fields[typed_arg] = f
     return fields
+
 
 # helper
 def insert_hci_events(events):
@@ -96,12 +99,26 @@ def insert_meta_events(defines):
                 continue
             print('    {%s, "%s"},' % (defines[key], key))
 
-def insert_vars(fields):
+def insert_hf_indices(fields):
     for field in sorted(fields.keys()):
-        format = fields[field]
-        if format in '1234':
-            c_type = c_type_for_btstack_type(format)
-            print('static int %s = -1;' % ("hf_btstack_" + field))
+        f = fields[field]
+        typed_arg = field + "_" + f
+        print('static int %s = -1;' % ("hf_btstack_" + typed_arg))
+
+def insert_hf_declaration(events):
+    for field in sorted(fields.keys()):
+        f = fields[field]
+        typed_arg = field + "_" + f
+        # TODO
+
+def insert_dissectors(events):
+    for event_type, event_name, format, args in events:
+        event_type_val = int(event_type, 16)
+        if event_type_val < 0x060:
+            continue
+        print('        case %s: /* % s */' % (event_type, event_name))
+        print('            break;')
+
 
 # main code
 btstack_root = os.path.abspath(os.path.dirname(sys.argv[0]) + '/..')
@@ -117,6 +134,10 @@ print("[+] Found %s" % target_file)
 
 # parse events
 (events, subevents, event_types) = parser.parse_events()
+
+# for event_type, event_name, format, args in events:
+#     print(event_type, event_name, format, args)
+
 
 # read defines from hci_cmds.h and hci.h
 defines = parser.parse_defines()
@@ -138,13 +159,13 @@ for line in fileinput.input(files=(target_file), inplace=True):
         drop_old = True
         continue
 
-    # insert variables
-    if hint_add_variables in line:
+    # insert hf vars - used to store field index
+    if hint_add_hf_vars in line:
         print(line)
         print(bk_addition_start)
-        insert_vars(fields)
-        print('''
-static int hf_bthci_hci_state = -1;''')
+        # insert_hf_indices(fields)
+#         print('''
+# static int hf_bthci_hci_state = -1;''')
         print(bk_addition_end)
         continue
 
@@ -159,40 +180,43 @@ static int hf_bthci_hci_state = -1;''')
     if hint_add_enums in line:
         print(line)
         print(bk_addition_start)
-        print('''
-static const value_string hci_state_vals[] = {
-    { 0x00, "HCI Off" },
-    { 0x01, "HCI Initializing" },
-    { 0x02, "HCI Working" },
-    { 0x03, "HCI Halting" },
-    { 0x04, "HCI Sleeping" },
-    { 0x05, "HCI Falling Asleep" },
-    { 0, NULL }
-};''')
+#         print('''
+# static const value_string hci_state_vals[] = {
+#     { 0x00, "HCI Off" },
+#     { 0x01, "HCI Initializing" },
+#     { 0x02, "HCI Working" },
+#     { 0x03, "HCI Halting" },
+#     { 0x04, "HCI Sleeping" },
+#     { 0x05, "HCI Falling Asleep" },
+#     { 0, NULL }
+# };''')
         print(bk_addition_end)
         continue
 
     # insert dissectors
     if hint_dissect_event in line:
         print(bk_addition_start)
-        print('''
-        case 0x60: /* HCI State */
-            proto_tree_add_item(tree, hf_bthci_hci_state, tvb, offset, 1, ENC_LITTLE_ENDIAN);
-            offset += 1;
-            break;
-''')
+        insert_dissectors(events)
+#         print('''
+#         case 0x60: /* HCI State */
+#             proto_tree_add_item(tree, hf_bthci_hci_state, tvb, offset, 1, ENC_LITTLE_ENDIAN);
+#             offset += 1;
+#             break;
+# ''')
+
         print(bk_addition_end)
 
-    # insert new header fields
+    # insert header fields
     if hint_add_header_fields in line:
         print(bk_addition_start)
-        print('''
-        { &hf_bthci_hci_state,
-          { "State", "bthci_evt.hci_state",
-            FT_UINT8, BASE_HEX, VALS(hci_state_vals), 0x0,
-            NULL, HFILL }
-        },
-''')
+        insert_hf_declaration(events)
+#         print('''
+#         { &hf_bthci_hci_state,
+#           { "State", "bthci_evt.hci_state",
+#             FT_UINT8, BASE_HEX, VALS(hci_state_vals), 0x0,
+#             NULL, HFILL }
+#         },
+# ''')
         print(bk_addition_end)
 
     print(line)
