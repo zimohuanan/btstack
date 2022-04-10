@@ -1019,8 +1019,6 @@ typedef uint8_t sm_key_t[16];
  */
 #define DAEMON_EVENT_SYSTEM_BLUETOOTH_ENABLED              0x64u
 
-// data: event (8), len(8), status (8) == 0, address (48), name (1984 bits = 248 bytes)
-
 /* 
  * @format 1BT
  * @param status == 0 to match read_remote_name_request
@@ -1078,11 +1076,13 @@ typedef uint8_t sm_key_t[16];
 #define HCI_EVENT_TRANSPORT_SLEEP_MODE                     0x69u
 
 /**
+ * @format
  * @brief Transport ready 
  */
 #define HCI_EVENT_TRANSPORT_READY                          0x6Du
 
 /**
+ * @format
  * @brief Outgoing packet 
  */
 #define HCI_EVENT_TRANSPORT_PACKET_SENT                    0x6Eu
@@ -1129,8 +1129,9 @@ typedef uint8_t sm_key_t[16];
  */
 #define L2CAP_EVENT_INCOMING_CONNECTION                    0x72u
 
-// ??
-// data: event(8), len(8), handle(16)
+/**
+ * @format H
+ */
 #define L2CAP_EVENT_TIMEOUT_CHECK                          0x73u
 
 /**
@@ -1143,15 +1144,14 @@ typedef uint8_t sm_key_t[16];
  */
 #define L2CAP_EVENT_CONNECTION_PARAMETER_UPDATE_REQUEST    0x76u
 
-// data: event(8), len(8), handle(16), result (16) (0 == ok, 1 == fail)
- /** 
-  * @format H2
-  * @param handle
-  * @param result
-  */
+/** 
+ * @format H2
+ * @param handle
+ * @param result
+ */
 #define L2CAP_EVENT_CONNECTION_PARAMETER_UPDATE_RESPONSE   0x77u
 
- /*
+/**
  * @format H22
  * @param con_handle
  * @param extended_feature_mask
@@ -1165,13 +1165,13 @@ typedef uint8_t sm_key_t[16];
  */
 #define L2CAP_EVENT_CAN_SEND_NOW                           0x79u
 
-/*
+/**
  * @format 2
  * @param local_cid
  */
 #define L2CAP_EVENT_PACKET_SENT                            0x7au
 
-/*
+/**
  * @format 2
  * @param local_cid
  */
