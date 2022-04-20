@@ -61,6 +61,12 @@
  
 #include "btstack.h"
 
+#ifdef ESP_PLATFORM
+// For vTaskList test
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#endif
+
 int btstack_main(int argc, const char * argv[]);
 
 #define RFCOMM_SERVER_CHANNEL 1
@@ -136,6 +142,17 @@ static void test_track_transferred(int bytes_sent){
     uint32_t now = btstack_run_loop_get_time_ms();
     uint32_t time_passed = now - test_data_start;
     if (time_passed < REPORT_INTERVAL_MS) return;
+
+#ifdef ESP_PLATFORM
+    static int counter = 0;
+    counter++;
+    if (counter == 3){
+        vTaskList((char *) test_data);
+        puts((const char*) test_data);
+        counter = 0;
+    }
+#endif
+
     // print speed
     int bytes_per_second = test_data_transferred * 1000 / time_passed;
     printf("%u bytes -> %u.%03u kB/s\n", (int) test_data_transferred, (int) bytes_per_second / 1000, bytes_per_second % 1000);
